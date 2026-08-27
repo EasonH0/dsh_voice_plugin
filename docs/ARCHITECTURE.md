@@ -99,6 +99,12 @@ idle ──開始──▶ starting ──權限/裝置就緒──▶ recording
 2. **穩定後**（經主人批准才執行）：`npm install sherpa-onnx-node`、下載模型（Hugging Face）、接上 SherpaEngine／WhisperEngine、整合測試。
 3. **落地**：由動態 Plugin 原型轉為正式可安裝 DSH 插件，開源分發。
 
+## 8. 已知問題與待辦
+
+- **關麥立即停止的文案**（2026-08-28 主人標記）：`stopOnMicOff` 的設定文案「關麥後立即停止輸出（放棄識別收尾與潤飾）」——「放棄潤飾」部分是否符合預期行為，**待正式接入真實引擎後測試再定**；本鯨需記住並在該階段主動提醒主人處理。
+- **設定面板側欄圖示**（2026-08-28 主人要求）：設定 >「語音輸入」側欄圖示希望由齒輪改為麥克風；DSH 目前 `settings.section` 註冊契約只有 `id`／`order`／`label`，**shell 統一渲染圖示、不支援 per-section 自訂**——正式插件落地時研究 shell 層支持（或提議 DSH 擴充）。
+- **下拉選單深色**（2026-08-28）：Chromium Windows 原生 `<select>` popup 不接受 `color-scheme` 控制；已改用自訂下拉選單元件（`.dsh-vsel`），樣式跟隨 DSH 主題明暗。
+
 ## 7. 決策紀錄
 
 - 2026-08-27：雙引擎架構定案（sherpa 串流主引擎＋Whisper 可選）；證書 Apache-2.0；快捷鍵僅頁面內；未來桌面版為獨立專案，本插件代碼不預留全域熱鍵耦合。

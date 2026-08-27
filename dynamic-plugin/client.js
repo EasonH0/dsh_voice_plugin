@@ -566,6 +566,30 @@ return {
       .dsh-voice-status.err { color: #e5484d; }
       .dsh-voice-keys { display: flex; flex-direction: column; gap: 4px; font-size: 12px; opacity: 0.75; }
       .dsh-voice-keys-item { font-family: inherit; }
+      .dsh-vsel { position: relative; flex: 1; min-width: 0; }
+      .dsh-vsel-trigger {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        width: 100%; min-width: 0; background: transparent; color: inherit;
+        border: 1px solid rgba(127,127,127,0.35); border-radius: 6px; padding: 5px 8px;
+        font: inherit; cursor: pointer;
+      }
+      .dsh-vsel-trigger:hover { border-color: rgba(127,127,127,0.6); }
+      .dsh-vsel-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.95; }
+      .dsh-vsel-popup {
+        position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 80;
+        border: 1px solid rgba(127,127,127,0.4); border-radius: 6px; overflow: hidden;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.45); max-height: 240px; overflow-y: auto;
+      }
+      .dsh-vsel-popup.dark { background: rgba(24,24,28,0.98); color: #e8e8ec; }
+      .dsh-vsel-popup.light { background: rgba(255,255,255,0.98); color: #1c1c20; }
+      .dsh-vsel-opt {
+        display: block; width: 100%; text-align: left; padding: 6px 10px;
+        font: inherit; background: transparent; color: inherit; border: 0; cursor: pointer;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .dsh-vsel-opt:hover { background: rgba(127,127,127,0.18); }
+      .dsh-vsel-opt.sel { background: rgba(76,154,255,0.25); }
+      .dsh-vsel-backdrop { position: fixed; inset: 0; z-index: 70; background: transparent; }
     `);
 
     // ---------- 圖示 ----------
@@ -645,6 +669,35 @@ return {
     }
 
     function SettingsPage(_props) {
+      function ChevronSvg() {
+        return React.createElement('svg', { viewBox: '0 0 24 24', width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 2 },
+          React.createElement('path', { d: 'M6 9l6 6 6-6' }));
+      }
+      // 自訂下拉選單：繞過瀏覽器原生渲染，深色主題下背景正確
+      function VoiceSelect(props) {
+        const [open, setOpen] = React.useState(false);
+        const options = props.options || [];
+        const cur = options.find((o) => o.value === props.value);
+        return React.createElement('div', { className: 'dsh-vsel' },
+          React.createElement('button', {
+            type: 'button',
+            className: 'dsh-vsel-trigger',
+            onClick: () => setOpen(!open),
+          },
+            React.createElement('span', { className: 'dsh-vsel-value' }, cur ? cur.label : ''),
+            ChevronSvg(),
+          ),
+          open ? React.createElement('div', { className: 'dsh-vsel-popup ' + (scheme === 'light' ? 'light' : 'dark') },
+            options.map((o) => React.createElement('button', {
+              key: o.value,
+              type: 'button',
+              className: 'dsh-vsel-opt' + (o.value === props.value ? ' sel' : ''),
+              onClick: () => { props.onChange(o.value); setOpen(false); },
+            }, o.label)),
+          ) : null,
+          open ? React.createElement('div', { className: 'dsh-vsel-backdrop', onClick: () => setOpen(false) }) : null,
+        );
+      }
       const s = useSettings();
       const tt = useTr();
       const scheme = useColorScheme();
@@ -754,6 +807,7 @@ return {
       React.useEffect(() => {
         capturingHotkey = capture;
         if (!capture || typeof window === 'undefined') return;
+        const isModifier = (code) => code === 'AltLeft' || code === 'AltRight' || code === 'ControlLeft' || code === 'ControlRight' || code === 'ShiftLeft' || code === 'ShiftRight' || code === 'MetaLeft' || code === 'MetaRight';
         const onKey = (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -762,7 +816,7 @@ return {
             setCapture(null);
             return;
           }
-          if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.code)) return; // 等待主鍵
+          if (isModifier(e.code)) return; // 修飾鍵（含左右變體）：等待主鍵組合
           const parts = [];
           if (e.ctrlKey) parts.push('Ctrl');
           if (e.altKey) parts.push('Alt');
@@ -797,16 +851,14 @@ return {
         Row({
           label: tt('settings.input'),
           children: [
-            React.createElement(
-              'select',
-              {
-                value: s.inputDeviceId,
-                style: { colorScheme: scheme },
-                onChange: (e) => settingsStore.set({ inputDeviceId: e.target.value }),
-              },
-              React.createElement('option', { value: '' }, tt('settings.defaultMic')),
-              devices.map((d) => React.createElement('option', { key: d.id, value: d.id }, d.label)),
-            ),
+            VoiceSelect({
+              value: s.inputDeviceId,
+              onChange: (v) => settingsStore.set({ inputDeviceId: v }),
+              options: [
+                { value: '', label: tt('settings.defaultMic') },
+                ...devices.map((d) => ({ value: d.id, label: d.label })),
+              ],
+            }),
           ],
         }),
         Row({
@@ -819,23 +871,27 @@ return {
         Row({
           label: tt('settings.recordMode'),
           children: [
-            React.createElement(
-              'select',
-              { value: s.recordMode, style: { colorScheme: scheme }, onChange: (e) => settingsStore.set({ recordMode: e.target.value }) },
-              React.createElement('option', { value: 'toggle' }, tt('settings.recordMode.toggle')),
-              React.createElement('option', { value: 'ptt' }, tt('settings.recordMode.ptt')),
-            ),
+            VoiceSelect({
+              value: s.recordMode,
+              onChange: (v) => settingsStore.set({ recordMode: v }),
+              options: [
+                { value: 'toggle', label: tt('settings.recordMode.toggle') },
+                { value: 'ptt', label: tt('settings.recordMode.ptt') },
+              ],
+            }),
           ],
         }),
         Row({
           label: tt('settings.engine'),
           children: [
-            React.createElement(
-              'select',
-              { value: s.engine, style: { colorScheme: scheme }, onChange: (e) => settingsStore.set({ engine: e.target.value }) },
-              React.createElement('option', { value: 'sherpa' }, tt('settings.engine.sherpa')),
-              React.createElement('option', { value: 'whisper' }, tt('settings.engine.whisper')),
-            ),
+            VoiceSelect({
+              value: s.engine,
+              onChange: (v) => settingsStore.set({ engine: v }),
+              options: [
+                { value: 'sherpa', label: tt('settings.engine.sherpa') },
+                { value: 'whisper', label: tt('settings.engine.whisper') },
+              ],
+            }),
           ],
         }),
         React.createElement('div', { className: 'dsh-voice-row' },
@@ -884,31 +940,25 @@ return {
           React.createElement('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', gap: 8 } },
             React.createElement('div', { className: 'dsh-voice-row' },
               React.createElement('span', { className: 'dsh-voice-hint', style: { flex: '0 0 96px' } }, tt('settings.llm.provider')),
-              React.createElement(
-                'select',
-                {
-                  value: s.polishProvider,
-                  style: { colorScheme: scheme },
-                  onChange: (e) => settingsStore.set({ polishProvider: e.target.value, polishModel: '' }),
-                },
-                React.createElement('option', { value: '' }, defaultLabel),
-                providers === null
-                  ? React.createElement('option', { value: '', disabled: true }, tt('settings.llm.loading'))
-                  : providers.map((p) => React.createElement('option', { key: p.id, value: p.id }, p.name + '（' + p.id + '）')),
-              ),
+              VoiceSelect({
+                value: s.polishProvider,
+                onChange: (v) => settingsStore.set({ polishProvider: v, polishModel: '' }),
+                options: [
+                  { value: '', label: defaultLabel },
+                  ...(providers === null ? [] : providers.map((p) => ({ value: p.id, label: p.name + '（' + p.id + '）' }))),
+                ],
+              }),
             ),
             React.createElement('div', { className: 'dsh-voice-row' },
               React.createElement('span', { className: 'dsh-voice-hint', style: { flex: '0 0 96px' } }, tt('settings.llm.model')),
-              React.createElement(
-                'select',
-                {
-                  value: s.polishModel,
-                  style: { colorScheme: scheme },
-                  onChange: (e) => settingsStore.set({ polishModel: e.target.value }),
-                },
-                React.createElement('option', { value: '' }, defaultLabel),
-                modelList.map((m) => React.createElement('option', { key: m.id, value: m.id }, m.name)),
-              ),
+              VoiceSelect({
+                value: s.polishModel,
+                onChange: (v) => settingsStore.set({ polishModel: v }),
+                options: [
+                  { value: '', label: defaultLabel },
+                  ...modelList.map((m) => ({ value: m.id, label: m.name })),
+                ],
+              }),
             ),
             React.createElement('div', { className: 'dsh-voice-hint' }, tt('settings.llm.keys')),
             React.createElement('div', { className: 'dsh-voice-keys' },
