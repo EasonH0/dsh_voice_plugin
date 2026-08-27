@@ -64,13 +64,14 @@ const pcm16k = resampleTo16k(pcm, sampleRate);
 console.log(`已重採樣至 16000Hz（${(pcm16k.length / 16000).toFixed(2)} 秒）`);
 
 const { SherpaEngine } = await import('../src/engines/sherpa-engine.mjs');
-const engine = new SherpaEngine({ modelDir });
+const quantization = process.argv[4] === 'fp32' ? 'fp32' : 'int8';
+const engine = new SherpaEngine({ modelDir, quantization });
 const started = engine.start({ sampleRate: 16000 });
 if (!started.ok) {
   console.error('引擎啟動失敗：', started.error);
   process.exit(1);
 }
-console.log('引擎啟動成功（串流三語：粵・中・英）');
+console.log(`引擎啟動成功（${quantization} 串流三語：粵・中・英）`);
 
 const chunkSize = 4000; // 250ms
 const t0 = Date.now();

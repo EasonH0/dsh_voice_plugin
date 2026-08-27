@@ -17,11 +17,13 @@ const DEFAULT_MODEL_DIR = join(
 );
 
 export class SherpaEngine {
-  // options: { modelDir, numThreads, sampleRate }
+  // options: { modelDir, numThreads, sampleRate, quantization }
+  // quantization: 'int8'（預設）| 'fp32'（全精度，更準但較慢）
   constructor(options = {}) {
     this.modelDir = options.modelDir ?? DEFAULT_MODEL_DIR;
     this.numThreads = options.numThreads ?? 4;
     this.sampleRate = options.sampleRate ?? 16000;
+    this.quantization = options.quantization === 'fp32' ? 'fp32' : 'int8';
     this.recognizer = null;
     this.stream = null;
     this.started = false;
@@ -34,12 +36,13 @@ export class SherpaEngine {
     this.sampleRate = sr;
     try {
       this.sherpa = require('sherpa-onnx-node');
+      const suffix = this.quantization === 'fp32' ? '' : '.int8';
       const config = {
         featConfig: { sampleRate: sr, featureDim: 80 },
         modelConfig: {
           paraformer: {
-            encoder: join(this.modelDir, 'encoder.int8.onnx'),
-            decoder: join(this.modelDir, 'decoder.int8.onnx'),
+            encoder: join(this.modelDir, `encoder${suffix}.onnx`),
+            decoder: join(this.modelDir, `decoder${suffix}.onnx`),
           },
           tokens: join(this.modelDir, 'tokens.txt'),
           numThreads: this.numThreads,
