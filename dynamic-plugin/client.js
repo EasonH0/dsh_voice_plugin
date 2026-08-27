@@ -168,14 +168,12 @@ return {
         'settings.polish': 'LLM 润色（修错字、标点、断句）',
         'settings.autoSend': '转写完成后自动发送',
         'settings.stopOnMicOff': '关麦后立即停止输出（放弃识别收尾与润色）',
-        'settings.llm': '润色模型（DSH 模型）',
+        'settings.llm': '润色模型',
         'settings.llm.provider': 'API Key／Provider',
         'settings.llm.unregistered': '（未连接）',
         'settings.llm.follow': '跟随会话（{value}）',
         'settings.llm.follow.none': '跟随会话',
         'settings.llm.model': '模型',
-        'settings.llm.keys': 'DSH 已配置的凭据',
-        'settings.llm.nokeys': '（未检测到已配置的凭据）',
         'settings.llm.loading': '加载中…',
       },
       en: {
@@ -212,14 +210,12 @@ return {
         'settings.polish': 'LLM polish (fix typos, punctuation, sentence breaks)',
         'settings.autoSend': 'Auto-send after transcription',
         'settings.stopOnMicOff': 'Stop output immediately on mic off (skip finalize and polish)',
-        'settings.llm': 'Polish model (DSH models)',
+        'settings.llm': 'Polish model',
         'settings.llm.provider': 'API key / Provider',
         'settings.llm.unregistered': ' (not connected)',
         'settings.llm.follow': 'Follow session ({value})',
         'settings.llm.follow.none': 'Follow session',
         'settings.llm.model': 'Model',
-        'settings.llm.keys': 'Credentials configured in DSH',
-        'settings.llm.nokeys': '(no configured credentials detected)',
         'settings.llm.loading': 'Loading…',
       },
     };
@@ -881,7 +877,6 @@ return {
 
       const fillPct = Math.min(100, Math.round(level * 140));
       const providers = catalog ? catalog.providers : null;
-      const records = catalog ? catalog.records : null;
       const defaultLabel = catalog && catalog.defaultProvider
         ? tt('settings.llm.follow', { value: catalog.defaultProvider + (catalog.defaultModel ? ' / ' + catalog.defaultModel : '') })
         : tt('settings.llm.follow.none');
@@ -1025,14 +1020,6 @@ return {
                   ...(s.polishModel && !modelList.some((m) => m.id === s.polishModel) ? [{ value: s.polishModel, label: s.polishModel }] : []),
                 ],
               }),
-            ),
-            React.createElement('div', { className: 'dsh-voice-hint' }, tt('settings.llm.keys')),
-            React.createElement('div', { className: 'dsh-voice-keys' },
-              records === null
-                ? React.createElement('div', { className: 'dsh-voice-hint' }, tt('settings.llm.loading'))
-                : records.length === 0
-                  ? React.createElement('div', { className: 'dsh-voice-hint' }, tt('settings.llm.nokeys'))
-                  : records.map((r, i) => React.createElement('div', { key: i, className: 'dsh-voice-keys-item' }, r.key + (r.kind ? '（' + r.kind + '）' : ''))),
             ),
           ),
         ),
