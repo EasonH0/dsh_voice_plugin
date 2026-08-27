@@ -569,26 +569,30 @@ return {
       .dsh-vsel { position: relative; flex: 1; min-width: 0; }
       .dsh-vsel-trigger {
         display: flex; align-items: center; justify-content: space-between; gap: 8px;
-        width: 100%; min-width: 0; background: transparent; color: inherit;
-        border: 1px solid rgba(127,127,127,0.35); border-radius: 6px; padding: 5px 8px;
+        width: 100%; min-width: 0;
+        background: var(--dsw-alias-bg-layer-1, transparent);
+        color: var(--dsw-alias-label-primary, inherit);
+        border: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,0.35));
+        border-radius: 6px; padding: 5px 8px;
         font: inherit; cursor: pointer;
       }
-      .dsh-vsel-trigger:hover { border-color: rgba(127,127,127,0.6); }
+      .dsh-vsel-trigger:hover { border-color: var(--dsw-alias-border-l2, rgba(127,127,127,0.6)); }
       .dsh-vsel-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.95; }
       .dsh-vsel-popup {
         position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 80;
-        border: 1px solid rgba(127,127,127,0.4); border-radius: 6px; overflow: hidden;
+        background: var(--dsw-alias-bg-overlay, rgba(24,24,28,0.98));
+        color: var(--dsw-alias-label-primary, #e8e8ec);
+        border: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,0.4));
+        border-radius: 6px; overflow: hidden;
         box-shadow: 0 8px 24px rgba(0,0,0,0.45); max-height: 240px; overflow-y: auto;
       }
-      .dsh-vsel-popup.dark { background: rgba(24,24,28,0.98); color: #e8e8ec; }
-      .dsh-vsel-popup.light { background: rgba(255,255,255,0.98); color: #1c1c20; }
       .dsh-vsel-opt {
         display: block; width: 100%; text-align: left; padding: 6px 10px;
         font: inherit; background: transparent; color: inherit; border: 0; cursor: pointer;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
-      .dsh-vsel-opt:hover { background: rgba(127,127,127,0.18); }
-      .dsh-vsel-opt.sel { background: rgba(76,154,255,0.25); }
+      .dsh-vsel-opt:hover { background: color-mix(in srgb, var(--dsw-alias-label-secondary, rgba(127,127,127,0.4)) 20%, transparent); }
+      .dsh-vsel-opt.sel { background: color-mix(in srgb, var(--dsw-alias-brand-primary, #4c9aff) 25%, transparent); }
       .dsh-vsel-backdrop { position: fixed; inset: 0; z-index: 70; background: transparent; }
     `);
 
@@ -687,7 +691,7 @@ return {
             React.createElement('span', { className: 'dsh-vsel-value' }, cur ? cur.label : ''),
             ChevronSvg(),
           ),
-          open ? React.createElement('div', { className: 'dsh-vsel-popup ' + (scheme === 'light' ? 'light' : 'dark') },
+          open ? React.createElement('div', { className: 'dsh-vsel-popup' },
             options.map((o) => React.createElement('button', {
               key: o.value,
               type: 'button',
