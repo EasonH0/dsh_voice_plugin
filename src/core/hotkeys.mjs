@@ -2,6 +2,24 @@
 
 const MOD_KEYS = Object.freeze(['ctrl', 'alt', 'shift', 'meta']);
 
+// 可綁定的一般按鍵（KeyboardEvent.code 命名法，大小寫不敏感輸入、正規化輸出）
+const EXTRA_CODES = Object.freeze([
+  'Backquote', 'Minus', 'Equal', 'BracketLeft', 'BracketRight', 'Backslash',
+  'Semicolon', 'Quote', 'Comma', 'Period', 'Slash', 'Space', 'Enter', 'Tab',
+  'Home', 'End', 'PageUp', 'PageDown', 'Insert', 'Delete',
+  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+]);
+
+function normalizeCode(part) {
+  const std = part.match(/^(key)([a-z])$/i) ?? part.match(/^(digit)([0-9])$/i) ?? part.match(/^(f)([1-9]|1[0-2])$/i);
+  if (std) {
+    const kind = std[1][0].toUpperCase() + std[1].slice(1).toLowerCase();
+    return kind === 'F' ? kind + std[2] : kind + std[2].toUpperCase();
+  }
+  const extra = EXTRA_CODES.find((c) => c.toLowerCase() === part.toLowerCase());
+  return extra ?? null;
+}
+
 // 'Ctrl+Shift+KeyM' → { ctrl, alt, shift, meta, code }
 export function parseHotkey(spec) {
   if (typeof spec !== 'string' || spec.trim().length === 0) return null;
@@ -13,15 +31,10 @@ export function parseHotkey(spec) {
     if (MOD_KEYS.includes(lower)) {
       mods[lower] = true;
     } else {
-      // code 採用 KeyboardEvent.code 命名法；大小寫不敏感，輸出正規化
-      const m =
-        part.match(/^(key)([a-z])$/i) ??
-        part.match(/^(digit)([0-9])$/i) ??
-        part.match(/^(f)([1-9]|1[0-2])$/i);
-      if (!m) return null;
+      const normalized = normalizeCode(part);
+      if (normalized === null) return null;
       if (code !== null) return null;
-      const kind = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
-      code = kind === 'F' ? kind + m[2] : kind + m[2].toUpperCase();
+      code = normalized;
     }
   }
   if (code === null) return null;

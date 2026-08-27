@@ -18,8 +18,29 @@ test('parseHotkey 合法格式', () => {
   });
 });
 
+test('parseHotkey 擴充可綁定按鍵（大小寫不敏感、正規化）', () => {
+  assert.deepEqual(parseHotkey('Ctrl+Space'), {
+    ctrl: true, alt: false, shift: false, meta: false, code: 'Space',
+  });
+  assert.deepEqual(parseHotkey('alt+enter'), {
+    ctrl: false, alt: true, shift: false, meta: false, code: 'Enter',
+  });
+  assert.deepEqual(parseHotkey('ArrowUp'), {
+    ctrl: false, alt: false, shift: false, meta: false, code: 'ArrowUp',
+  });
+  assert.deepEqual(parseHotkey('Shift+pageDown'), {
+    ctrl: false, alt: false, shift: true, meta: false, code: 'PageDown',
+  });
+  assert.deepEqual(parseHotkey('Ctrl+Comma'), {
+    ctrl: true, alt: false, shift: false, meta: false, code: 'Comma',
+  });
+  assert.deepEqual(parseHotkey('Alt+Slash'), {
+    ctrl: false, alt: true, shift: false, meta: false, code: 'Slash',
+  });
+});
+
 test('parseHotkey 非法格式回 null', () => {
-  for (const bad of ['', 'M', 'Alt+', 'KeyM+KeyN', 'Alt+Xyz', 'Alt+Enter', null, 5]) {
+  for (const bad of ['', 'M', 'Alt+', 'KeyM+KeyN', 'Alt+Xyz', 'Alt+Pause', null, 5]) {
     assert.equal(parseHotkey(bad), null, `input: ${bad}`);
   }
 });

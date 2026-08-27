@@ -9,6 +9,7 @@ return {
     if (slots === undefined) return;
     const timer = ctx.get('timer');
     const localeSvc = ctx.get('locale');
+    const themeSvc = ctx.get('theme');
 
     // ---------- 內聯：設定（與 src/core/settings.mjs 一致） ----------
     const DEFAULT_HOTKEYS = { toggle: 'Alt+KeyM', ptt: 'Alt+KeyV' };
@@ -17,13 +18,14 @@ return {
       inputDeviceId: '',
       recordMode: 'toggle',
       noiseSuppression: true,
-      echoCancellation: true,
+      echoCancellation: false,
       autoGainControl: true,
       monitor: false,
       polish: true,
       polishProvider: '',
       polishModel: '',
       autoSend: false,
+      stopOnMicOff: false,
       hotkeys: { ...DEFAULT_HOTKEYS },
     };
     function normalizeSettings(raw) {
@@ -39,7 +41,7 @@ return {
         if (key === 'engine' && (value === 'sherpa' || value === 'whisper')) out.engine = value;
         else if (key === 'recordMode' && (value === 'toggle' || value === 'ptt')) out.recordMode = value;
         else if ((key === 'inputDeviceId' || key === 'polishProvider' || key === 'polishModel') && typeof value === 'string') out[key] = value;
-        else if (['noiseSuppression', 'echoCancellation', 'autoGainControl', 'monitor', 'polish', 'autoSend'].includes(key) && typeof value === 'boolean') out[key] = value;
+        else if (['noiseSuppression', 'echoCancellation', 'autoGainControl', 'monitor', 'polish', 'autoSend', 'stopOnMicOff'].includes(key) && typeof value === 'boolean') out[key] = value;
       }
       return out;
     }
@@ -50,16 +52,30 @@ return {
       const parts = spec.split('+').map((p) => p.trim());
       const mods = { ctrl: false, alt: false, shift: false, meta: false };
       let code = null;
+      const EXTRA_CODES = [
+        'Backquote', 'Minus', 'Equal', 'BracketLeft', 'BracketRight', 'Backslash',
+        'Semicolon', 'Quote', 'Comma', 'Period', 'Slash', 'Space', 'Enter', 'Tab',
+        'Home', 'End', 'PageUp', 'PageDown', 'Insert', 'Delete',
+        'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+      ];
+      function normalizeCode(part) {
+        const std = part.match(/^(key)([a-z])$/i) ?? part.match(/^(digit)([0-9])$/i) ?? part.match(/^(f)([1-9]|1[0-2])$/i);
+        if (std) {
+          const kind = std[1][0].toUpperCase() + std[1].slice(1).toLowerCase();
+          return kind === 'F' ? kind + std[2] : kind + std[2].toUpperCase();
+        }
+        const extra = EXTRA_CODES.find((c) => c.toLowerCase() === part.toLowerCase());
+        return extra ?? null;
+      }
       for (const part of parts) {
         const lower = part.toLowerCase();
         if (['ctrl', 'alt', 'shift', 'meta'].includes(lower)) {
           mods[lower] = true;
         } else {
-          const m = part.match(/^(key)([a-z])$/i) ?? part.match(/^(digit)([0-9])$/i) ?? part.match(/^(f)([1-9]|1[0-2])$/i);
-          if (!m) return null;
+          const normalized = normalizeCode(part);
+          if (normalized === null) return null;
           if (code !== null) return null;
-          const kind = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
-          code = kind === 'F' ? kind + m[2] : kind + m[2].toUpperCase();
+          code = normalized;
         }
       }
       if (code === null) return null;
@@ -114,44 +130,45 @@ return {
     // ---------- UI 文字（跟隨 DSH 語言；正式版改接 locale 字典註冊） ----------
     const DICTS = {
       zh: {
-        'mic.title.toggle': '語音輸入（點擊開始／停止）',
-        'mic.title.ptt': '按住說話（語音輸入）',
-        'mic.processing': '處理中…',
-        'mic.label': '語音輸入',
-        'err.start': '錄音啟動失敗：{message}',
-        'err.end': '辨識結束失敗：{message}',
-        'settings.status': '原型階段：辨識以模擬引擎運作，語音不離開本機。',
-        'settings.input': '輸入來源',
-        'settings.inputLevel': '輸入音量',
-        'settings.defaultMic': '系統預設麥克風',
-        'settings.mic.fallback': '麥克風（{id}）',
-        'settings.recordMode': '錄音模式',
-        'settings.recordMode.toggle': '點擊開始／點擊停止',
-        'settings.recordMode.ptt': '按住說話（Push-to-talk）',
-        'settings.engine': '辨識引擎',
-        'settings.engine.sherpa': 'sherpa-onnx 串流（粵・中・英）',
-        'settings.engine.whisper': 'Whisper large-v3（安裝階段啟用）',
-        'settings.hotkeys': '快捷鍵',
-        'settings.hotkeys.toggleHint': '開始／停止',
-        'settings.hotkeys.pttHint': '按住說話',
-        'settings.hotkeys.capture': '按下新快捷鍵…',
-        'settings.hotkeys.record': '錄製',
-        'settings.audio': '音訊處理',
-        'settings.noise': '降噪（抑制環境噪音）',
-        'settings.echo': '回音消除',
-        'settings.agc': '自動增益',
-        'settings.monitor': '監聽輸入（開降噪時聽到降噪後效果）',
-        'settings.output': '輸出',
-        'settings.polish': 'LLM 潤飾（修錯字、標點、斷句）',
-        'settings.autoSend': '轉錄完成後自動發送',
-        'settings.llm': '潤飾模型（DSH 模型）',
+        'mic.title.toggle': '语音输入（点击开始／停止）',
+        'mic.title.ptt': '按住说话（语音输入）',
+        'mic.processing': '处理中…',
+        'mic.label': '语音输入',
+        'err.start': '录音启动失败：{message}',
+        'err.end': '识别结束失败：{message}',
+        'settings.status': '原型阶段：识别以模拟引擎运作，语音不离开本机。',
+        'settings.input': '输入来源',
+        'settings.inputLevel': '输入音量',
+        'settings.defaultMic': '系统默认麦克风',
+        'settings.mic.fallback': '麦克风（{id}）',
+        'settings.recordMode': '录音模式',
+        'settings.recordMode.toggle': '点击开始／点击停止',
+        'settings.recordMode.ptt': '按住说话（Push-to-talk）',
+        'settings.engine': '识别引擎',
+        'settings.engine.sherpa': 'sherpa-onnx 流式（粤・中・英）',
+        'settings.engine.whisper': 'Whisper large-v3（安装阶段启用）',
+        'settings.hotkeys': '快捷键',
+        'settings.hotkeys.toggleHint': '开始／停止',
+        'settings.hotkeys.pttHint': '按住说话',
+        'settings.hotkeys.capture': '按下新快捷键…',
+        'settings.hotkeys.record': '录制',
+        'settings.audio': '音频处理',
+        'settings.noise': '降噪（抑制环境噪音）',
+        'settings.echo': '回声消除',
+        'settings.agc': '自动增益',
+        'settings.monitor': '监听输入（开降噪时听到降噪后效果）',
+        'settings.output': '输出',
+        'settings.polish': 'LLM 润色（修错字、标点、断句）',
+        'settings.autoSend': '转写完成后自动发送',
+        'settings.stopOnMicOff': '关麦后立即停止输出（放弃识别收尾与润色）',
+        'settings.llm': '润色模型（DSH 模型）',
         'settings.llm.provider': 'API Key／Provider',
-        'settings.llm.follow': '跟隨 DSH 預設（{value}）',
-        'settings.llm.follow.none': '跟隨 DSH 預設',
+        'settings.llm.follow': '跟随 DSH 默认（{value}）',
+        'settings.llm.follow.none': '跟随 DSH 默认',
         'settings.llm.model': '模型',
-        'settings.llm.keys': 'DSH 已配置的憑證',
-        'settings.llm.nokeys': '（未偵測到已配置的憑證）',
-        'settings.llm.loading': '載入中…',
+        'settings.llm.keys': 'DSH 已配置的凭据',
+        'settings.llm.nokeys': '（未检测到已配置的凭据）',
+        'settings.llm.loading': '加载中…',
       },
       en: {
         'mic.title.toggle': 'Voice input (click to start/stop)',
@@ -184,6 +201,7 @@ return {
         'settings.output': 'Output',
         'settings.polish': 'LLM polish (fix typos, punctuation, sentence breaks)',
         'settings.autoSend': 'Auto-send after transcription',
+        'settings.stopOnMicOff': 'Stop output immediately on mic off (skip finalize and polish)',
         'settings.llm': 'Polish model (DSH models)',
         'settings.llm.provider': 'API key / Provider',
         'settings.llm.follow': 'Follow DSH default ({value})',
@@ -222,6 +240,21 @@ return {
     function useTr() {
       const lang = useLocale();
       return (key, params) => tr(lang, key, params);
+    }
+
+    function useColorScheme() {
+      const read = () => {
+        if (themeSvc && typeof themeSvc.getTheme === 'function') {
+          try {
+            const s = themeSvc.getTheme();
+            if (s && s.active && s.active.colorScheme) return s.active.colorScheme;
+          } catch (_) {}
+        }
+        return 'dark';
+      };
+      const [scheme, setScheme] = React.useState(read);
+      React.useEffect(() => ctx.on('theme/change', () => setScheme(read())), []);
+      return scheme;
     }
 
     // ---------- 設定 store（記憶體 + Host 同步） ----------
@@ -411,6 +444,13 @@ return {
     }
 
     async function voiceFinalize() {
+      if (settingsStore.get().stopOnMicOff) {
+        try { await host.call('voice.reset', {}); } catch (_) {}
+        vLiveText = '';
+        vStatus = 'idle';
+        voiceEmit();
+        return;
+      }
       vStatus = 'finalizing';
       voiceEmit();
       voiceCleanupAudio();
@@ -603,6 +643,7 @@ return {
     function SettingsPage(_props) {
       const s = useSettings();
       const tt = useTr();
+      const scheme = useColorScheme();
       const [devices, setDevices] = React.useState([]);
       const [level, setLevel] = React.useState(0);
       const [capture, setCapture] = React.useState(null);
@@ -741,7 +782,7 @@ return {
 
       return React.createElement(
         'div',
-        { className: 'dsh-voice-page' },
+        { className: 'dsh-voice-page', style: { colorScheme: scheme } },
         React.createElement('div', { className: 'dsh-voice-status' }, tt('settings.status')),
         Row({
           label: tt('settings.input'),
@@ -823,6 +864,7 @@ return {
           React.createElement('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', gap: 8 } },
             Check({ name: 'polish', checked: s.polish, label: tt('settings.polish') }),
             Check({ name: 'autoSend', checked: s.autoSend, label: tt('settings.autoSend') }),
+            Check({ name: 'stopOnMicOff', checked: s.stopOnMicOff, label: tt('settings.stopOnMicOff') }),
           ),
         ),
         React.createElement('div', { className: 'dsh-voice-row' },
@@ -867,14 +909,24 @@ return {
       );
     }
 
-    // ---------- Slot 註冊 ----------
+    // ---------- Slot 註冊（label 用 thunk：語言切換時文字即時跟隨） ----------
     slots.inject('conversation.input.right', () => slots.register(
-      { name: 'conversation.input.right', id: 'dsh-voice-input-mic', order: 0, label: '語音輸入' },
+      {
+        name: 'conversation.input.right',
+        id: 'dsh-voice-input-mic',
+        order: 0,
+        label: () => (currentLocale() === 'en' ? 'Voice Input' : '语音输入'),
+      },
       (props) => React.createElement(MicButton, props),
     ));
 
     slots.inject('settings.section', () => slots.register(
-      { name: 'settings.section', id: 'dsh-voice-input', order: 30, label: '語音輸入' },
+      {
+        name: 'settings.section',
+        id: 'dsh-voice-input',
+        order: 30,
+        label: () => (currentLocale() === 'en' ? 'Voice Input' : '语音输入'),
+      },
       (props) => React.createElement(SettingsPage, props),
     ));
   },

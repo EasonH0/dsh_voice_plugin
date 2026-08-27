@@ -70,13 +70,14 @@ client: call('voice.end', {})                → 回傳 { text, done:true }（�
 | `inputDeviceId` | `string` | 空（系統預設） | 麥克風裝置 |
 | `recordMode` | `'toggle' \| 'ptt'` | `'toggle'` | 錄音模式 |
 | `noiseSuppression` | `boolean` | `true` | 降噪（瀏覽器語音處理） |
-| `echoCancellation` | `boolean` | `true` | 回音消除 |
+| `echoCancellation` | `boolean` | `false` | 回音消除（無回音環境開 AEC 反致斷續，預設關） |
 | `autoGainControl` | `boolean` | `true` | 自動增益 |
 | `monitor` | `boolean` | `false` | 監聽輸入（降噪開則聽到降噪後效果） |
 | `polish` | `boolean` | `true` | LLM 潤飾 |
 | `polishProvider` | `string` | `''`（跟隨 DSH 預設） | 潤飾用 provider（＝DSH 已配置 API key 的路由） |
 | `polishModel` | `string` | `''`（跟隨 DSH 預設） | 潤飾用模型 |
 | `autoSend` | `boolean` | `false` | 自動發送 |
+| `stopOnMicOff` | `boolean` | `false` | 關麥後立即停止輸出（放棄辨識沖洗與潤飾） |
 | `hotkeys` | `{ toggle, ptt }` | 見核心 | 頁面內快捷鍵 |
 
 設定以 `localStorage`（Client 端）＋ Host 端持久化雙份，由 `settings.mjs` 統一驗證與合併。
@@ -106,3 +107,11 @@ idle ──開始──▶ starting ──權限/裝置就緒──▶ recording
 - 2026-08-27：**LLM 潤飾接上 DSH 的 `llm` 服務**（零安裝）：設定頁讀取 `llm.listProviders()`（DSH 已配置 API key 的 provider 路由）＋`llm.listModels(provider)`（模型目錄）＋`credentials.listRecords()`（已存憑證清單，只顯示不取值）。**「選擇哪個 key」＝選擇哪個 provider 路由**：key 值由 DSH adapter 自動使用，插件不經手敏感值。預設跟隨 `agentDefaultModel.currentSelection()`。
 - 2026-08-27：**UI 語言跟隨 DSH**：插件一切介面文字隨 DSH locale（zh／en）切換；動態原型以自管字典實現，正式版接 `locale` 字典註冊。潤飾輸出語文亦跟隨 DSH locale。
 - 2026-08-27：**語音輸入語言**（辨識語言）與 UI 語言分離：將來單獨提供選擇；現階段 sherpa 三語模型（粵・中・英）固定、無需選擇。
+- 2026-08-27（第一版試用修改意見）：
+  1. 設定頁根容器加 `color-scheme`（讀 `theme.active.colorScheme`），深色主題下原生下拉選單背景正確變深；
+  2. 中文 UI 全部改為**簡體中文**（配合 DSH 的 zh locale；潤飾輸出仍為繁體書面語——主人文字偏好）；
+  3. Slot 註冊 `label` 改用 thunk，語言切換時側欄「語音輸入」按鈕文字即時跟隨；
+  4. 快捷鍵白名單擴充（Space/Enter/Tab/方向鍵/Home/End/PageUp/PageDown/標點鍵等），可綁定更多自定義按鍵；
+  5. 新增 `stopOnMicOff`（關麥後立即停止輸出），預設關閉；
+  6. `echoCancellation` 預設改為關閉——瀏覽器 WebRTC AEC（麥克風端回音消除）在無回音環境會過度處理造成斷續；後續如需專業 AEC 可在 Host 端（安裝階段）引入 WebRTC AudioProcessing／RNNoise；
+  7. `autoGainControl` 體驗良好，維持預設開啟。

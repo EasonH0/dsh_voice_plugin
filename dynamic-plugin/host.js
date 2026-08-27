@@ -14,13 +14,14 @@ return {
       inputDeviceId: '',
       recordMode: 'toggle',
       noiseSuppression: true,
-      echoCancellation: true,
+      echoCancellation: false,
       autoGainControl: true,
       monitor: false,
       polish: true,
       polishProvider: '',
       polishModel: '',
       autoSend: false,
+      stopOnMicOff: false,
       hotkeys: { ...DEFAULT_HOTKEYS },
     };
     const ENGINE_IDS = ['sherpa', 'whisper'];
@@ -40,7 +41,7 @@ return {
         if (key === 'engine' && ENGINE_IDS.includes(value)) out.engine = value;
         else if (key === 'recordMode' && RECORD_MODES.includes(value)) out.recordMode = value;
         else if ((key === 'inputDeviceId' || key === 'polishProvider' || key === 'polishModel') && typeof value === 'string') out[key] = value;
-        else if (['noiseSuppression', 'echoCancellation', 'autoGainControl', 'monitor', 'polish', 'autoSend'].includes(key) && typeof value === 'boolean') out[key] = value;
+        else if (['noiseSuppression', 'echoCancellation', 'autoGainControl', 'monitor', 'polish', 'autoSend', 'stopOnMicOff'].includes(key) && typeof value === 'boolean') out[key] = value;
       }
       return out;
     }

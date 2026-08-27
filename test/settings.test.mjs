@@ -13,10 +13,13 @@ test('DEFAULTS 形狀完整', () => {
   assert.equal(DEFAULTS.engine, 'sherpa');
   assert.equal(DEFAULTS.recordMode, 'toggle');
   assert.equal(DEFAULTS.noiseSuppression, true);
+  assert.equal(DEFAULTS.echoCancellation, false);
+  assert.equal(DEFAULTS.autoGainControl, true);
   assert.equal(DEFAULTS.polish, true);
   assert.equal(DEFAULTS.polishProvider, '');
   assert.equal(DEFAULTS.polishModel, '');
   assert.equal(DEFAULTS.autoSend, false);
+  assert.equal(DEFAULTS.stopOnMicOff, false);
   assert.deepEqual(DEFAULTS.hotkeys, DEFAULT_HOTKEYS);
 });
 
@@ -32,12 +35,16 @@ test('normalizeSettings 合併合法值', () => {
     polish: false,
     polishProvider: 'deepseek',
     polishModel: 'deepseek-chat',
+    stopOnMicOff: true,
+    echoCancellation: true,
   });
   assert.equal(s.engine, 'whisper');
   assert.equal(s.autoSend, true);
   assert.equal(s.polish, false);
   assert.equal(s.polishProvider, 'deepseek');
   assert.equal(s.polishModel, 'deepseek-chat');
+  assert.equal(s.stopOnMicOff, true);
+  assert.equal(s.echoCancellation, true);
   assert.equal(s.recordMode, 'toggle');
 });
 
@@ -63,6 +70,8 @@ test('validateSetting 各鍵合法/非法', () => {
   assert.equal(validateSetting('polishProvider', 'deepseek'), 'deepseek');
   assert.equal(validateSetting('polishProvider', 9), undefined);
   assert.equal(validateSetting('polishModel', ''), '');
+  assert.equal(validateSetting('stopOnMicOff', true), true);
+  assert.equal(validateSetting('stopOnMicOff', 'yes'), undefined);
 });
 
 test('normalizeHotkeys 缺項補預設', () => {

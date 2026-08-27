@@ -13,13 +13,14 @@ export const DEFAULTS = Object.freeze({
   inputDeviceId: '',
   recordMode: 'toggle',
   noiseSuppression: true,
-  echoCancellation: true,
+  echoCancellation: false, // 無回音環境下開 AEC 反致斷續，預設關
   autoGainControl: true,
   monitor: false,
   polish: true,
   polishProvider: '', // 空 = 跟隨 DSH 預設 provider（對應 DSH 已配置的 API key）
   polishModel: '', // 空 = 跟隨 DSH 預設模型
   autoSend: false,
+  stopOnMicOff: false, // 關麥後立即停止輸出（放棄辨識沖洗與潤飾），預設關
   hotkeys: DEFAULT_HOTKEYS,
 });
 
@@ -30,6 +31,7 @@ const BOOLEAN_KEYS = Object.freeze([
   'monitor',
   'polish',
   'autoSend',
+  'stopOnMicOff',
 ]);
 
 // 驗證單一鍵值，合法回傳正規化後的值，非法回傳 undefined。
