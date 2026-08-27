@@ -148,10 +148,11 @@ return {
         'settings.engine.sherpa': 'sherpa-onnx 流式（粤・中・英）',
         'settings.engine.whisper': 'Whisper large-v3（安装阶段启用）',
         'settings.hotkeys': '快捷键',
+        'settings.hotkeys.hint': '点击「录制快捷键」后按下想要的组合键（先按住修饰键再按主键，例如 Ctrl+Alt+空格），按 Esc 取消。',
         'settings.hotkeys.toggleHint': '开始／停止',
         'settings.hotkeys.pttHint': '按住说话',
-        'settings.hotkeys.capture': '按下新快捷键…',
-        'settings.hotkeys.record': '录制',
+        'settings.hotkeys.capture': '按下组合键（Esc 取消）…',
+        'settings.hotkeys.record': '录制快捷键',
         'settings.audio': '音频处理',
         'settings.noise': '降噪（抑制环境噪音）',
         'settings.echo': '回声消除',
@@ -189,10 +190,11 @@ return {
         'settings.engine.sherpa': 'sherpa-onnx streaming (Cantonese/Chinese/English)',
         'settings.engine.whisper': 'Whisper large-v3 (enabled at install stage)',
         'settings.hotkeys': 'Hotkeys',
+        'settings.hotkeys.hint': 'Click "Record hotkey", then press the combination (hold modifiers first, e.g. Ctrl+Alt+Space). Press Esc to cancel.',
         'settings.hotkeys.toggleHint': 'Start / stop',
         'settings.hotkeys.pttHint': 'Hold to talk',
-        'settings.hotkeys.capture': 'Press new hotkey…',
-        'settings.hotkeys.record': 'Record',
+        'settings.hotkeys.capture': 'Press the key combination (Esc to cancel)…',
+        'settings.hotkeys.record': 'Record hotkey',
         'settings.audio': 'Audio processing',
         'settings.noise': 'Noise suppression',
         'settings.echo': 'Echo cancellation',
@@ -410,6 +412,7 @@ return {
           const b64 = bytesToBase64(int16ToBytes(float32ToInt16(f32)));
           host.call('voice.chunk', { seq: mySeq, b64 }).then((res) => {
             if (mySeq < vLatestAppliedSeq) return;
+            if (vStatus !== 'recording' && vStatus !== 'starting') return; // 已停止：不再寫入草稿
             vLatestAppliedSeq = mySeq;
             vLiveText = res && typeof res.text === 'string' ? res.text : vLiveText;
             voiceApplyDraft(false, vLiveText);
@@ -445,6 +448,7 @@ return {
 
     async function voiceFinalize() {
       if (settingsStore.get().stopOnMicOff) {
+        voiceCleanupAudio(); // 關鍵：先停掉麥克風與音訊處理，避免 onaudioprocess 繼續寫空文字覆蓋草稿
         try { await host.call('voice.reset', {}); } catch (_) {}
         vLiveText = '';
         vStatus = 'idle';
@@ -746,19 +750,25 @@ return {
         } catch (_) {}
       }, [s.monitor]);
 
-      // 快捷鍵錄製
+      // 快捷鍵錄製（修飾鍵按下不結束，等待主鍵組合；Esc 取消）
       React.useEffect(() => {
         capturingHotkey = capture;
         if (!capture || typeof window === 'undefined') return;
         const onKey = (e) => {
           e.preventDefault();
           e.stopPropagation();
+          if (e.code === 'Escape') {
+            capturingHotkey = null;
+            setCapture(null);
+            return;
+          }
+          if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.code)) return; // 等待主鍵
           const parts = [];
           if (e.ctrlKey) parts.push('Ctrl');
           if (e.altKey) parts.push('Alt');
           if (e.shiftKey) parts.push('Shift');
           if (e.metaKey) parts.push('Meta');
-          if (!['Control', 'Alt', 'Shift', 'Meta'].includes(e.code)) parts.push(e.code);
+          parts.push(e.code);
           const parsed = parseHotkey(parts.join('+'));
           if (parsed) {
             settingsStore.set({ hotkeys: { ...settingsStore.get().hotkeys, [capture]: parts.join('+') } });
@@ -791,6 +801,7 @@ return {
               'select',
               {
                 value: s.inputDeviceId,
+                style: { colorScheme: scheme },
                 onChange: (e) => settingsStore.set({ inputDeviceId: e.target.value }),
               },
               React.createElement('option', { value: '' }, tt('settings.defaultMic')),
@@ -810,7 +821,7 @@ return {
           children: [
             React.createElement(
               'select',
-              { value: s.recordMode, onChange: (e) => settingsStore.set({ recordMode: e.target.value }) },
+              { value: s.recordMode, style: { colorScheme: scheme }, onChange: (e) => settingsStore.set({ recordMode: e.target.value }) },
               React.createElement('option', { value: 'toggle' }, tt('settings.recordMode.toggle')),
               React.createElement('option', { value: 'ptt' }, tt('settings.recordMode.ptt')),
             ),
@@ -821,7 +832,7 @@ return {
           children: [
             React.createElement(
               'select',
-              { value: s.engine, onChange: (e) => settingsStore.set({ engine: e.target.value }) },
+              { value: s.engine, style: { colorScheme: scheme }, onChange: (e) => settingsStore.set({ engine: e.target.value }) },
               React.createElement('option', { value: 'sherpa' }, tt('settings.engine.sherpa')),
               React.createElement('option', { value: 'whisper' }, tt('settings.engine.whisper')),
             ),
@@ -830,6 +841,7 @@ return {
         React.createElement('div', { className: 'dsh-voice-row' },
           React.createElement('span', { className: 'dsh-voice-row-label' }, tt('settings.hotkeys')),
           React.createElement('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', gap: 6 } },
+            React.createElement('div', { className: 'dsh-voice-hint' }, tt('settings.hotkeys.hint')),
             React.createElement('div', { className: 'dsh-voice-row' },
               React.createElement('span', { className: 'dsh-voice-kbd' }, s.hotkeys.toggle),
               React.createElement('span', { className: 'dsh-voice-hint' }, tt('settings.hotkeys.toggleHint')),
@@ -876,6 +888,7 @@ return {
                 'select',
                 {
                   value: s.polishProvider,
+                  style: { colorScheme: scheme },
                   onChange: (e) => settingsStore.set({ polishProvider: e.target.value, polishModel: '' }),
                 },
                 React.createElement('option', { value: '' }, defaultLabel),
@@ -890,6 +903,7 @@ return {
                 'select',
                 {
                   value: s.polishModel,
+                  style: { colorScheme: scheme },
                   onChange: (e) => settingsStore.set({ polishModel: e.target.value }),
                 },
                 React.createElement('option', { value: '' }, defaultLabel),
