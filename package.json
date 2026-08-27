@@ -1,0 +1,11 @@
+{
+  "name": "dsh_voice_plugin",
+  "version": "0.1.0",
+  "description": "DSH 本地語音輸入插件：sherpa-onnx 串流粵中英辨識、Whisper 可選引擎、LLM 潤飾層",
+  "type": "module",
+  "license": "Apache-2.0",
+  "private": false,
+  "scripts": {
+    "test": "node --test --test-isolation=none \"test/*.test.mjs\""
+  }
+}
