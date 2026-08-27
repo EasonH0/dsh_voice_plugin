@@ -1,26 +1,22 @@
 // whisper-engine.mjs — 第二辨識引擎：Whisper large-v3（transformers.js / ONNX Runtime）
 // 高準確率、非串流（錄完整段後批次辨識）；中英混說與粵語辨識遠優於串流模型。
 // 依 IEngine 契約（src/engines/engine.mjs）：start/push/end/reset/dispose。
+// 注意：transformers 為惰性載入（start 內動態 import），避免宿主缺失依賴時整個插件加載失敗。
 
-import { pipeline, env } from '@xenova/transformers';
 import { join } from 'node:path';
 import { int16ToFloat32 } from '../core/audio-utils.mjs';
 
-// 全本地：關閉遠端下載，只讀本機模型目錄（scripts/download-whisper-model.mjs 產出）
 const MODELS_ROOT = join(import.meta.dirname, '..', '..', 'models');
-env.allowRemoteModels = false;
-env.allowLocalModels = true;
-env.useFSCache = false;
-env.localModelPath = MODELS_ROOT; // transformers.js 會把相對模型名拼在此根目錄
 
 const DEFAULT_MODEL_NAME = 'whisper-large-v3';
 
 export class WhisperEngine {
-  // options: { modelName, quantized, language, task }
+  // options: { modelName, modelDir, quantized, language, task }
   // quantized: true 使用量化版模型檔（download-whisper-model.mjs 下載的就是量化版）
   // language: null = 自動偵測；可指定 'zh' | 'yue' | 'en'。
   constructor(options = {}) {
     this.modelName = options.modelName ?? options.modelPath ?? DEFAULT_MODEL_NAME;
+    this.modelDir = options.modelDir ?? MODELS_ROOT;
     this.quantized = options.quantized ?? true;
     this.language = options.language ?? null;
     this.task = options.task ?? 'transcribe';
@@ -33,6 +29,11 @@ export class WhisperEngine {
     this.sampleRate = Number.isFinite(sampleRate) ? sampleRate : 16000;
     if (this.started && this.pipe) return { ok: true };
     try {
+      const { pipeline, env } = await import('@xenova/transformers');
+      env.allowRemoteModels = false;
+      env.allowLocalModels = true;
+      env.useFSCache = false;
+      env.localModelPath = this.modelDir; // 注入的模型根目錄（內含 whisper-large-v3/ 子目錄）
       this.pipe = await pipeline('automatic-speech-recognition', this.modelName, {
         quantized: this.quantized,
         progress_callback: null,
