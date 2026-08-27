@@ -1,12 +1,14 @@
 // dynamic-plugin/client.js — 動態 Plugin 原型：Client 半部
 // 麥克風按鈕（conversation.input.right）＋語音輸入設定頁（settings.section）
-// 錄音、降噪、音量表、監聽、快捷鍵；辨識以 Host MockEngine 模擬（零安裝階段）。
+// UI 文字跟隨 DSH 語言（zh/en）；錄音、降噪、音量表、監聽、快捷鍵；
+// 辨識以 Host MockEngine 模擬；潤飾模型可選 DSH 已配置的 provider／key／模型。
 
 return {
   apply(ctx) {
     const slots = ctx.get('slots');
     if (slots === undefined) return;
     const timer = ctx.get('timer');
+    const localeSvc = ctx.get('locale');
 
     // ---------- 內聯：設定（與 src/core/settings.mjs 一致） ----------
     const DEFAULT_HOTKEYS = { toggle: 'Alt+KeyM', ptt: 'Alt+KeyV' };
@@ -19,6 +21,8 @@ return {
       autoGainControl: true,
       monitor: false,
       polish: true,
+      polishProvider: '',
+      polishModel: '',
       autoSend: false,
       hotkeys: { ...DEFAULT_HOTKEYS },
     };
@@ -34,7 +38,7 @@ return {
         }
         if (key === 'engine' && (value === 'sherpa' || value === 'whisper')) out.engine = value;
         else if (key === 'recordMode' && (value === 'toggle' || value === 'ptt')) out.recordMode = value;
-        else if (key === 'inputDeviceId' && typeof value === 'string') out.inputDeviceId = value;
+        else if ((key === 'inputDeviceId' || key === 'polishProvider' || key === 'polishModel') && typeof value === 'string') out[key] = value;
         else if (['noiseSuppression', 'echoCancellation', 'autoGainControl', 'monitor', 'polish', 'autoSend'].includes(key) && typeof value === 'boolean') out[key] = value;
       }
       return out;
@@ -107,6 +111,119 @@ return {
       return out;
     }
 
+    // ---------- UI 文字（跟隨 DSH 語言；正式版改接 locale 字典註冊） ----------
+    const DICTS = {
+      zh: {
+        'mic.title.toggle': '語音輸入（點擊開始／停止）',
+        'mic.title.ptt': '按住說話（語音輸入）',
+        'mic.processing': '處理中…',
+        'mic.label': '語音輸入',
+        'err.start': '錄音啟動失敗：{message}',
+        'err.end': '辨識結束失敗：{message}',
+        'settings.status': '原型階段：辨識以模擬引擎運作，語音不離開本機。',
+        'settings.input': '輸入來源',
+        'settings.inputLevel': '輸入音量',
+        'settings.defaultMic': '系統預設麥克風',
+        'settings.mic.fallback': '麥克風（{id}）',
+        'settings.recordMode': '錄音模式',
+        'settings.recordMode.toggle': '點擊開始／點擊停止',
+        'settings.recordMode.ptt': '按住說話（Push-to-talk）',
+        'settings.engine': '辨識引擎',
+        'settings.engine.sherpa': 'sherpa-onnx 串流（粵・中・英）',
+        'settings.engine.whisper': 'Whisper large-v3（安裝階段啟用）',
+        'settings.hotkeys': '快捷鍵',
+        'settings.hotkeys.toggleHint': '開始／停止',
+        'settings.hotkeys.pttHint': '按住說話',
+        'settings.hotkeys.capture': '按下新快捷鍵…',
+        'settings.hotkeys.record': '錄製',
+        'settings.audio': '音訊處理',
+        'settings.noise': '降噪（抑制環境噪音）',
+        'settings.echo': '回音消除',
+        'settings.agc': '自動增益',
+        'settings.monitor': '監聽輸入（開降噪時聽到降噪後效果）',
+        'settings.output': '輸出',
+        'settings.polish': 'LLM 潤飾（修錯字、標點、斷句）',
+        'settings.autoSend': '轉錄完成後自動發送',
+        'settings.llm': '潤飾模型（DSH 模型）',
+        'settings.llm.provider': 'API Key／Provider',
+        'settings.llm.follow': '跟隨 DSH 預設（{value}）',
+        'settings.llm.follow.none': '跟隨 DSH 預設',
+        'settings.llm.model': '模型',
+        'settings.llm.keys': 'DSH 已配置的憑證',
+        'settings.llm.nokeys': '（未偵測到已配置的憑證）',
+        'settings.llm.loading': '載入中…',
+      },
+      en: {
+        'mic.title.toggle': 'Voice input (click to start/stop)',
+        'mic.title.ptt': 'Hold to talk (voice input)',
+        'mic.processing': 'Processing…',
+        'mic.label': 'Voice input',
+        'err.start': 'Failed to start recording: {message}',
+        'err.end': 'Failed to finish recognition: {message}',
+        'settings.status': 'Prototype stage: recognition runs on a mock engine; audio never leaves this machine.',
+        'settings.input': 'Input source',
+        'settings.inputLevel': 'Input level',
+        'settings.defaultMic': 'System default microphone',
+        'settings.mic.fallback': 'Microphone ({id})',
+        'settings.recordMode': 'Recording mode',
+        'settings.recordMode.toggle': 'Click to start / click to stop',
+        'settings.recordMode.ptt': 'Hold to talk (Push-to-talk)',
+        'settings.engine': 'Recognition engine',
+        'settings.engine.sherpa': 'sherpa-onnx streaming (Cantonese/Chinese/English)',
+        'settings.engine.whisper': 'Whisper large-v3 (enabled at install stage)',
+        'settings.hotkeys': 'Hotkeys',
+        'settings.hotkeys.toggleHint': 'Start / stop',
+        'settings.hotkeys.pttHint': 'Hold to talk',
+        'settings.hotkeys.capture': 'Press new hotkey…',
+        'settings.hotkeys.record': 'Record',
+        'settings.audio': 'Audio processing',
+        'settings.noise': 'Noise suppression',
+        'settings.echo': 'Echo cancellation',
+        'settings.agc': 'Auto gain control',
+        'settings.monitor': 'Monitor input (hears denoised audio when suppression is on)',
+        'settings.output': 'Output',
+        'settings.polish': 'LLM polish (fix typos, punctuation, sentence breaks)',
+        'settings.autoSend': 'Auto-send after transcription',
+        'settings.llm': 'Polish model (DSH models)',
+        'settings.llm.provider': 'API key / Provider',
+        'settings.llm.follow': 'Follow DSH default ({value})',
+        'settings.llm.follow.none': 'Follow DSH default',
+        'settings.llm.model': 'Model',
+        'settings.llm.keys': 'Credentials configured in DSH',
+        'settings.llm.nokeys': '(no configured credentials detected)',
+        'settings.llm.loading': 'Loading…',
+      },
+    };
+    function currentLocale() {
+      if (localeSvc && typeof localeSvc.getSnapshot === 'function') {
+        try {
+          const s = localeSvc.getSnapshot();
+          if (s && typeof s.active === 'string') return s.active;
+        } catch (_) {}
+      }
+      return 'zh';
+    }
+    function tr(lang, key, params) {
+      const dict = DICTS[lang] ?? DICTS.zh;
+      let s = dict[key] ?? DICTS.zh[key] ?? key;
+      if (params) {
+        for (const [k, v] of Object.entries(params)) s = s.split('{' + k + '}').join(String(v));
+      }
+      return s;
+    }
+    function useLocale() {
+      const [lang, setLang] = React.useState(currentLocale);
+      React.useEffect(() => {
+        if (!localeSvc || typeof localeSvc.subscribe !== 'function') return;
+        return localeSvc.subscribe(() => setLang(currentLocale()));
+      }, []);
+      return lang;
+    }
+    function useTr() {
+      const lang = useLocale();
+      return (key, params) => tr(lang, key, params);
+    }
+
     // ---------- 設定 store（記憶體 + Host 同步） ----------
     let settings = { ...DEFAULTS, hotkeys: { ...DEFAULT_HOTKEYS } };
     const settingsListeners = new Set();
@@ -131,7 +248,7 @@ return {
     }).catch(() => {});
 
     let capturingHotkey = null;
-    let meterHandle = null; // 設定頁音量表資源（避免使用未確認的 useRef）
+    let meterHandle = null;
 
     function useSettings() {
       const [s, setS] = React.useState(settingsStore.get());
@@ -141,10 +258,11 @@ return {
 
     // ---------- 語音控制器 ----------
     const voiceListeners = new Set();
-    let vStatus = 'idle'; // idle | starting | recording | finalizing
+    let vStatus = 'idle';
     let vLevel = 0;
     let vLiveText = '';
     let vError = '';
+    let vErrorKind = 'start';
     let vBaseDraft = '';
     let vTakeover = true;
     let vSeq = 0;
@@ -159,7 +277,7 @@ return {
     let vProc = null;
 
     function voiceSnapshot() {
-      return { status: vStatus, level: vLevel, liveText: vLiveText, error: vError };
+      return { status: vStatus, level: vLevel, liveText: vLiveText, error: vError, errorKind: vErrorKind };
     }
     function voiceEmit() {
       const s = voiceSnapshot();
@@ -205,7 +323,7 @@ return {
       const cur = vBridge.getDraft();
       if (vTakeover) {
         if (!isFinal && cur !== vBaseDraft && !cur.startsWith(vBaseDraft)) {
-          vTakeover = false; // 主人正在編輯：串流不再覆寫，最終結果改為追加
+          vTakeover = false;
           return;
         }
         vBridge.setDraft(vBaseDraft + text);
@@ -272,7 +390,8 @@ return {
         voiceEmit();
         return true;
       } catch (err) {
-        vError = '錄音啟動失敗：' + String((err && err.message) || err);
+        vError = String((err && err.message) || err);
+        vErrorKind = 'start';
         try { await host.call('voice.reset', {}); } catch (_) {}
         voiceCleanupAudio();
         vStatus = 'idle';
@@ -297,10 +416,11 @@ return {
       voiceCleanupAudio();
       let text = vLiveText;
       try {
-        const res = await host.call('voice.end', {});
+        const res = await host.call('voice.end', { locale: currentLocale() });
         text = res && typeof res.text === 'string' ? res.text : text;
       } catch (err) {
-        vError = '辨識結束失敗：' + String((err && err.message) || err);
+        vError = String((err && err.message) || err);
+        vErrorKind = 'end';
       }
       voiceApplyDraft(true, text);
       if (settingsStore.get().autoSend && vBridge) {
@@ -400,6 +520,8 @@ return {
       .dsh-voice-btn.capture { border-color: #4c9aff; color: #4c9aff; }
       .dsh-voice-status { font-size: 12px; opacity: 0.7; }
       .dsh-voice-status.err { color: #e5484d; }
+      .dsh-voice-keys { display: flex; flex-direction: column; gap: 4px; font-size: 12px; opacity: 0.75; }
+      .dsh-voice-keys-item { font-family: inherit; }
     `);
 
     // ---------- 圖示 ----------
@@ -417,6 +539,7 @@ return {
       const { input, inputActions } = props;
       const [v, setV] = React.useState(voice.snapshot());
       const s = useSettings();
+      const tt = useTr();
       React.useEffect(() => voice.subscribe(setV), []);
       React.useEffect(() => {
         voice.setBridge({
@@ -443,13 +566,13 @@ return {
           }
         : { onClick: () => voice.toggle() };
 
-      let title = mode === 'ptt' ? '按住說話（語音輸入）' : '語音輸入（點擊開始／停止）';
-      if (v.status === 'finalizing') title = '處理中…';
-      if (v.error) title = v.error;
+      let title = mode === 'ptt' ? tt('mic.title.ptt') : tt('mic.title.toggle');
+      if (v.status === 'finalizing') title = tt('mic.processing');
+      if (v.error) title = tt('err.' + v.errorKind, { message: v.error });
 
       return React.createElement(
         'button',
-        { type: 'button', className: cls.join(' '), title, 'aria-label': '語音輸入', ...handlers },
+        { type: 'button', className: cls.join(' '), title, 'aria-label': tt('mic.label'), ...handlers },
         recording ? React.createElement('div', { className: 'dsh-voice-mic-ring' }) : null,
         MicSvg(),
       );
@@ -479,9 +602,12 @@ return {
 
     function SettingsPage(_props) {
       const s = useSettings();
+      const tt = useTr();
       const [devices, setDevices] = React.useState([]);
       const [level, setLevel] = React.useState(0);
-      const [capture, setCapture] = React.useState(null); // null | 'toggle' | 'ptt'
+      const [capture, setCapture] = React.useState(null);
+      const [catalog, setCatalog] = React.useState(null);
+      const [modelList, setModelList] = React.useState([]);
 
       // 列舉麥克風裝置
       React.useEffect(() => {
@@ -493,11 +619,23 @@ return {
             if (!alive) return;
             setDevices(list
               .filter((d) => d.kind === 'audioinput')
-              .map((d) => ({ id: d.deviceId, label: d.label || '麥克風（' + String(d.deviceId).slice(0, 6) + '）' })));
+              .map((d) => ({ id: d.deviceId, label: d.label || tt('settings.mic.fallback', { id: String(d.deviceId).slice(0, 6) }) })));
           } catch (_) {}
         })();
         return () => { alive = false; };
       }, []);
+
+      // DSH 模型目錄（provider = 已配置 API key 的路由）與已存憑證
+      React.useEffect(() => {
+        host.call('llm.catalog').then((c) => setCatalog(c && typeof c === 'object' ? c : null)).catch(() => setCatalog(null));
+      }, []);
+      const activeProvider = s.polishProvider || (catalog && catalog.defaultProvider) || '';
+      React.useEffect(() => {
+        if (!activeProvider) { setModelList([]); return; }
+        host.call('llm.models', { provider: activeProvider })
+          .then((m) => setModelList(Array.isArray(m) ? m : []))
+          .catch(() => setModelList([]));
+      }, [activeProvider]);
 
       // 音量表：對選中裝置建立 meter stream（含降噪設定），即時讀取音量
       React.useEffect(() => {
@@ -595,14 +733,18 @@ return {
       }, [capture]);
 
       const fillPct = Math.min(100, Math.round(level * 140));
+      const providers = catalog ? catalog.providers : null;
+      const records = catalog ? catalog.records : null;
+      const defaultLabel = catalog && catalog.defaultProvider
+        ? tt('settings.llm.follow', { value: catalog.defaultProvider + (catalog.defaultModel ? ' / ' + catalog.defaultModel : '') })
+        : tt('settings.llm.follow.none');
 
       return React.createElement(
         'div',
         { className: 'dsh-voice-page' },
-        React.createElement('div', { className: 'dsh-voice-status' },
-          '原型階段：辨識以模擬引擎運作，語音不離開本機。'),
+        React.createElement('div', { className: 'dsh-voice-status' }, tt('settings.status')),
         Row({
-          label: '輸入來源',
+          label: tt('settings.input'),
           children: [
             React.createElement(
               'select',
@@ -610,77 +752,116 @@ return {
                 value: s.inputDeviceId,
                 onChange: (e) => settingsStore.set({ inputDeviceId: e.target.value }),
               },
-              React.createElement('option', { value: '' }, '系統預設麥克風'),
+              React.createElement('option', { value: '' }, tt('settings.defaultMic')),
               devices.map((d) => React.createElement('option', { key: d.id, value: d.id }, d.label)),
             ),
           ],
         }),
         Row({
-          label: '輸入音量',
+          label: tt('settings.inputLevel'),
           children: [
             React.createElement('div', { className: 'dsh-voice-meter' },
               React.createElement('div', { className: 'dsh-voice-meter-fill', style: { width: fillPct + '%' } })),
           ],
         }),
         Row({
-          label: '錄音模式',
+          label: tt('settings.recordMode'),
           children: [
             React.createElement(
               'select',
               { value: s.recordMode, onChange: (e) => settingsStore.set({ recordMode: e.target.value }) },
-              React.createElement('option', { value: 'toggle' }, '點擊開始／點擊停止'),
-              React.createElement('option', { value: 'ptt' }, '按住說話（Push-to-talk）'),
+              React.createElement('option', { value: 'toggle' }, tt('settings.recordMode.toggle')),
+              React.createElement('option', { value: 'ptt' }, tt('settings.recordMode.ptt')),
             ),
           ],
         }),
         Row({
-          label: '辨識引擎',
+          label: tt('settings.engine'),
           children: [
             React.createElement(
               'select',
               { value: s.engine, onChange: (e) => settingsStore.set({ engine: e.target.value }) },
-              React.createElement('option', { value: 'sherpa' }, 'sherpa-onnx 串流（粵・中・英）'),
-              React.createElement('option', { value: 'whisper' }, 'Whisper large-v3（安裝階段啟用）'),
+              React.createElement('option', { value: 'sherpa' }, tt('settings.engine.sherpa')),
+              React.createElement('option', { value: 'whisper' }, tt('settings.engine.whisper')),
             ),
           ],
         }),
         React.createElement('div', { className: 'dsh-voice-row' },
-          React.createElement('span', { className: 'dsh-voice-row-label' }, '快捷鍵'),
+          React.createElement('span', { className: 'dsh-voice-row-label' }, tt('settings.hotkeys')),
           React.createElement('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', gap: 6 } },
             React.createElement('div', { className: 'dsh-voice-row' },
               React.createElement('span', { className: 'dsh-voice-kbd' }, s.hotkeys.toggle),
-              React.createElement('span', { className: 'dsh-voice-hint' }, '開始／停止'),
+              React.createElement('span', { className: 'dsh-voice-hint' }, tt('settings.hotkeys.toggleHint')),
               React.createElement('button', {
                 type: 'button',
                 className: 'dsh-voice-btn' + (capture === 'toggle' ? ' capture' : ''),
                 onClick: () => setCapture(capture === 'toggle' ? null : 'toggle'),
-              }, capture === 'toggle' ? '按下新快捷鍵…' : '錄製'),
+              }, capture === 'toggle' ? tt('settings.hotkeys.capture') : tt('settings.hotkeys.record')),
             ),
             React.createElement('div', { className: 'dsh-voice-row' },
               React.createElement('span', { className: 'dsh-voice-kbd' }, s.hotkeys.ptt),
-              React.createElement('span', { className: 'dsh-voice-hint' }, '按住說話'),
+              React.createElement('span', { className: 'dsh-voice-hint' }, tt('settings.hotkeys.pttHint')),
               React.createElement('button', {
                 type: 'button',
                 className: 'dsh-voice-btn' + (capture === 'ptt' ? ' capture' : ''),
                 onClick: () => setCapture(capture === 'ptt' ? null : 'ptt'),
-              }, capture === 'ptt' ? '按下新快捷鍵…' : '錄製'),
+              }, capture === 'ptt' ? tt('settings.hotkeys.capture') : tt('settings.hotkeys.record')),
             ),
           ),
         ),
         React.createElement('div', { className: 'dsh-voice-row' },
-          React.createElement('span', { className: 'dsh-voice-row-label' }, '音訊處理'),
+          React.createElement('span', { className: 'dsh-voice-row-label' }, tt('settings.audio')),
           React.createElement('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', gap: 8 } },
-            Check({ name: 'noiseSuppression', checked: s.noiseSuppression, label: '降噪（抑制環境噪音）' }),
-            Check({ name: 'echoCancellation', checked: s.echoCancellation, label: '回音消除' }),
-            Check({ name: 'autoGainControl', checked: s.autoGainControl, label: '自動增益' }),
-            Check({ name: 'monitor', checked: s.monitor, label: '監聽輸入（開降噪時聽到降噪後效果）' }),
+            Check({ name: 'noiseSuppression', checked: s.noiseSuppression, label: tt('settings.noise') }),
+            Check({ name: 'echoCancellation', checked: s.echoCancellation, label: tt('settings.echo') }),
+            Check({ name: 'autoGainControl', checked: s.autoGainControl, label: tt('settings.agc') }),
+            Check({ name: 'monitor', checked: s.monitor, label: tt('settings.monitor') }),
           ),
         ),
         React.createElement('div', { className: 'dsh-voice-row' },
-          React.createElement('span', { className: 'dsh-voice-row-label' }, '輸出'),
+          React.createElement('span', { className: 'dsh-voice-row-label' }, tt('settings.output')),
           React.createElement('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', gap: 8 } },
-            Check({ name: 'polish', checked: s.polish, label: 'LLM 潤飾（修錯字、標點、斷句）' }),
-            Check({ name: 'autoSend', checked: s.autoSend, label: '轉錄完成後自動發送' }),
+            Check({ name: 'polish', checked: s.polish, label: tt('settings.polish') }),
+            Check({ name: 'autoSend', checked: s.autoSend, label: tt('settings.autoSend') }),
+          ),
+        ),
+        React.createElement('div', { className: 'dsh-voice-row' },
+          React.createElement('span', { className: 'dsh-voice-row-label' }, tt('settings.llm')),
+          React.createElement('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', gap: 8 } },
+            React.createElement('div', { className: 'dsh-voice-row' },
+              React.createElement('span', { className: 'dsh-voice-hint', style: { flex: '0 0 96px' } }, tt('settings.llm.provider')),
+              React.createElement(
+                'select',
+                {
+                  value: s.polishProvider,
+                  onChange: (e) => settingsStore.set({ polishProvider: e.target.value, polishModel: '' }),
+                },
+                React.createElement('option', { value: '' }, defaultLabel),
+                providers === null
+                  ? React.createElement('option', { value: '', disabled: true }, tt('settings.llm.loading'))
+                  : providers.map((p) => React.createElement('option', { key: p.id, value: p.id }, p.name + '（' + p.id + '）')),
+              ),
+            ),
+            React.createElement('div', { className: 'dsh-voice-row' },
+              React.createElement('span', { className: 'dsh-voice-hint', style: { flex: '0 0 96px' } }, tt('settings.llm.model')),
+              React.createElement(
+                'select',
+                {
+                  value: s.polishModel,
+                  onChange: (e) => settingsStore.set({ polishModel: e.target.value }),
+                },
+                React.createElement('option', { value: '' }, defaultLabel),
+                modelList.map((m) => React.createElement('option', { key: m.id, value: m.id }, m.name)),
+              ),
+            ),
+            React.createElement('div', { className: 'dsh-voice-hint' }, tt('settings.llm.keys')),
+            React.createElement('div', { className: 'dsh-voice-keys' },
+              records === null
+                ? React.createElement('div', { className: 'dsh-voice-hint' }, tt('settings.llm.loading'))
+                : records.length === 0
+                  ? React.createElement('div', { className: 'dsh-voice-hint' }, tt('settings.llm.nokeys'))
+                  : records.map((r, i) => React.createElement('div', { key: i, className: 'dsh-voice-keys-item' }, r.key + (r.kind ? '（' + r.kind + '）' : ''))),
+            ),
           ),
         ),
       );

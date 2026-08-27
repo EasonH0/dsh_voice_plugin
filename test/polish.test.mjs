@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPolishMessages, POLISH_SYSTEM_PROMPT } from '../src/host/polish.mjs';
+import {
+  buildPolishMessages,
+  polishPromptForLocale,
+  POLISH_SYSTEM_PROMPT,
+  POLISH_SYSTEM_PROMPTS,
+} from '../src/host/polish.mjs';
 
 test('buildPolishMessages 基本形狀', () => {
   const m = buildPolishMessages('我要setTimeout喺node度跑');
@@ -24,4 +29,15 @@ test('system prompt 涵蓋核心規則', () => {
   assert.ok(POLISH_SYSTEM_PROMPT.includes('標點符號'));
   assert.ok(POLISH_SYSTEM_PROMPT.includes('英文單詞'));
   assert.ok(POLISH_SYSTEM_PROMPT.includes('不增刪'));
+});
+
+test('polishPromptForLocale 依 DSH 語言選擇 prompt', () => {
+  assert.equal(polishPromptForLocale('zh'), POLISH_SYSTEM_PROMPTS.zh);
+  assert.equal(polishPromptForLocale('en'), POLISH_SYSTEM_PROMPTS.en);
+  assert.equal(polishPromptForLocale('fr'), POLISH_SYSTEM_PROMPTS.zh); // 未支援語言回退 zh
+  assert.equal(polishPromptForLocale(undefined), POLISH_SYSTEM_PROMPTS.zh);
+});
+
+test('buildPolishMessages 傳入 locale 使用對應 prompt', () => {
+  assert.equal(buildPolishMessages('hello', 'en').system, POLISH_SYSTEM_PROMPTS.en);
 });

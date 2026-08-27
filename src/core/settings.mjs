@@ -17,6 +17,8 @@ export const DEFAULTS = Object.freeze({
   autoGainControl: true,
   monitor: false,
   polish: true,
+  polishProvider: '', // 空 = 跟隨 DSH 預設 provider（對應 DSH 已配置的 API key）
+  polishModel: '', // 空 = 跟隨 DSH 預設模型
   autoSend: false,
   hotkeys: DEFAULT_HOTKEYS,
 });
@@ -38,6 +40,8 @@ export function validateSetting(key, value) {
     case 'recordMode':
       return RECORD_MODES.includes(value) ? value : undefined;
     case 'inputDeviceId':
+    case 'polishProvider':
+    case 'polishModel':
       return typeof value === 'string' ? value : undefined;
     case 'hotkeys': {
       const h = normalizeHotkeys(value);

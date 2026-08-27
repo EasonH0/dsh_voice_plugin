@@ -14,6 +14,8 @@ test('DEFAULTS 形狀完整', () => {
   assert.equal(DEFAULTS.recordMode, 'toggle');
   assert.equal(DEFAULTS.noiseSuppression, true);
   assert.equal(DEFAULTS.polish, true);
+  assert.equal(DEFAULTS.polishProvider, '');
+  assert.equal(DEFAULTS.polishModel, '');
   assert.equal(DEFAULTS.autoSend, false);
   assert.deepEqual(DEFAULTS.hotkeys, DEFAULT_HOTKEYS);
 });
@@ -24,10 +26,18 @@ test('normalizeSettings 空輸入回預設', () => {
 });
 
 test('normalizeSettings 合併合法值', () => {
-  const s = normalizeSettings({ engine: 'whisper', autoSend: true, polish: false });
+  const s = normalizeSettings({
+    engine: 'whisper',
+    autoSend: true,
+    polish: false,
+    polishProvider: 'deepseek',
+    polishModel: 'deepseek-chat',
+  });
   assert.equal(s.engine, 'whisper');
   assert.equal(s.autoSend, true);
   assert.equal(s.polish, false);
+  assert.equal(s.polishProvider, 'deepseek');
+  assert.equal(s.polishModel, 'deepseek-chat');
   assert.equal(s.recordMode, 'toggle');
 });
 
@@ -50,6 +60,9 @@ test('validateSetting 各鍵合法/非法', () => {
   assert.equal(validateSetting('monitor', 1), undefined);
   assert.equal(validateSetting('inputDeviceId', 'abc'), 'abc');
   assert.equal(validateSetting('inputDeviceId', 5), undefined);
+  assert.equal(validateSetting('polishProvider', 'deepseek'), 'deepseek');
+  assert.equal(validateSetting('polishProvider', 9), undefined);
+  assert.equal(validateSetting('polishModel', ''), '');
 });
 
 test('normalizeHotkeys 缺項補預設', () => {

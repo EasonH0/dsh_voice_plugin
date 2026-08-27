@@ -1,9 +1,12 @@
 // dynamic-plugin/host.js — 動態 Plugin 原型：Host 半部
-// 開發階段以 MockEngine 模擬辨識引擎（零安裝）；真實引擎於安裝階段接上。
-// 此檔案與 src/engines、src/core 的契約一致，動態環境禁止 import，故核心函數內聯。
+// 辨識以 MockEngine 模擬（零安裝階段）；LLM 潤飾已接上 DSH 的 llm 服務（真潤飾）。
 
 return {
   apply(ctx) {
+    const llm = ctx.get('llm');
+    const agentDefaultModel = ctx.get('agentDefaultModel');
+    const credentials = ctx.get('credentials');
+
     // ---------- 內聯：設定 ----------
     const DEFAULT_HOTKEYS = { toggle: 'Alt+KeyM', ptt: 'Alt+KeyV' };
     const DEFAULTS = {
@@ -15,6 +18,8 @@ return {
       autoGainControl: true,
       monitor: false,
       polish: true,
+      polishProvider: '',
+      polishModel: '',
       autoSend: false,
       hotkeys: { ...DEFAULT_HOTKEYS },
     };
@@ -34,7 +39,7 @@ return {
         if (key === 'hotkeys') { out.hotkeys = normalizeHotkeys(value); continue; }
         if (key === 'engine' && ENGINE_IDS.includes(value)) out.engine = value;
         else if (key === 'recordMode' && RECORD_MODES.includes(value)) out.recordMode = value;
-        else if (key === 'inputDeviceId' && typeof value === 'string') out.inputDeviceId = value;
+        else if ((key === 'inputDeviceId' || key === 'polishProvider' || key === 'polishModel') && typeof value === 'string') out[key] = value;
         else if (['noiseSuppression', 'echoCancellation', 'autoGainControl', 'monitor', 'polish', 'autoSend'].includes(key) && typeof value === 'boolean') out[key] = value;
       }
       return out;
@@ -108,10 +113,67 @@ return {
       dispose() { this.reset(); }
     }
 
+    // ---------- 內聯：潤飾 prompt（與 src/host/polish.mjs 一致） ----------
+    const POLISH_PROMPTS = {
+      zh: [
+        '你是語音轉錄潤飾器。使用者以廣東話口語說話，內容可能夾雜英文與程式術語。',
+        '請將轉錄文字修正為流暢的繁體中文書面語：',
+        '1. 修正同音／近音錯字與語音辨識錯誤；',
+        '2. 補上恰當的標點符號與斷句；',
+        '3. 保留所有英文單詞、程式碼、專有名詞原樣；',
+        '4. 保留原意與所有資訊，不增刪、不總結、不改寫語氣。',
+        '只輸出潤飾後的文字，不要任何解釋、前言或引號。',
+      ].join('\n'),
+      en: [
+        'You are a speech-transcript polisher. The user speaks Cantonese with occasional English and technical terms.',
+        'Rewrite the transcript into fluent written English:',
+        '1. Fix homophone errors and speech-recognition mistakes;',
+        '2. Add proper punctuation and sentence breaks;',
+        '3. Keep all code, identifiers, and technical terms intact;',
+        '4. Preserve the original meaning and all information; do not add, remove, summarize, or change the tone.',
+        'Output only the polished text, with no explanation, preamble, or quotes.',
+      ].join('\n'),
+    };
+    function polishPromptForLocale(locale) {
+      return POLISH_PROMPTS[locale] ?? POLISH_PROMPTS.zh;
+    }
+
     // ---------- 狀態 ----------
     let settings = { ...DEFAULTS, hotkeys: { ...DEFAULT_HOTKEYS } };
     let engine = new MockEngine();
     let active = false;
+    let msgSeq = 0;
+
+    // ---------- 潤飾執行（用 DSH 的 llm 服務；key 由 adapter 依所選 provider 自動使用） ----------
+    async function runPolish(transcript, locale) {
+      if (!llm) throw new Error('llm service unavailable');
+      let provider = settings.polishProvider;
+      let model = settings.polishModel;
+      if (!provider || !model) {
+        const sel = agentDefaultModel ? agentDefaultModel.currentSelection() : {};
+        if (!provider) provider = sel.provider;
+        if (!model) model = sel.model;
+      }
+      if (!provider || !model) throw new Error('no provider/model configured');
+      const messages = [{
+        id: 'voice-polish-' + (++msgSeq),
+        role: 'user',
+        content: [{ type: 'text', text: transcript }],
+        source: { kind: 'plugin', plugin: 'dsh_voice_plugin' },
+      }];
+      let out = '';
+      for await (const chunk of llm.stream({
+        provider,
+        model,
+        messages,
+        system: polishPromptForLocale(locale),
+        temperature: 0,
+      })) {
+        if (chunk && chunk.type === 'text-delta') out += chunk.text;
+      }
+      const trimmed = out.trim();
+      return trimmed.length > 0 ? trimmed : transcript;
+    }
 
     // ---------- RPC ----------
     harness.handle('settings.get', () => settings);
@@ -119,6 +181,43 @@ return {
     harness.handle('settings.update', (args) => {
       settings = normalizeSettings(args ?? {});
       return settings;
+    });
+
+    // DSH 已有的 provider（= 已配置 API key 的路由）、預設模型、已存憑證清單（不含值）
+    harness.handle('llm.catalog', async () => {
+      const providers = llm ? llm.listProviders().map((p) => ({ id: p.id, name: p.name })) : [];
+      let defaultProvider = '';
+      let defaultModel = '';
+      try {
+        if (agentDefaultModel) {
+          const sel = agentDefaultModel.currentSelection();
+          if (sel && typeof sel.provider === 'string') {
+            defaultProvider = sel.provider;
+            defaultModel = typeof sel.model === 'string' ? sel.model : '';
+          }
+        }
+      } catch (_) {}
+      let records = [];
+      if (credentials) {
+        try {
+          const list = await credentials.listRecords();
+          records = (list ?? []).map((entry) => ({
+            key: entry && typeof entry.key === 'string' ? entry.key : JSON.stringify(entry && entry.key),
+            kind: entry && entry.kind ? String(entry.kind) : null,
+          }));
+        } catch (_) {}
+      }
+      return { providers, defaultProvider, defaultModel, records };
+    });
+
+    harness.handle('llm.models', async (args) => {
+      if (!llm || !args || typeof args.provider !== 'string' || args.provider.length === 0) return [];
+      try {
+        const list = await llm.listModels(args.provider);
+        return (list ?? []).map((m) => ({ id: m.id, name: m.name ?? m.id }));
+      } catch (_) {
+        return [];
+      }
     });
 
     harness.handle('voice.begin', (args) => {
@@ -141,12 +240,22 @@ return {
       return { text: r.text, done: r.done };
     });
 
-    harness.handle('voice.end', () => {
+    harness.handle('voice.end', async (args) => {
       if (!active) return { text: '', polished: false, done: true };
       const r = engine.end();
       active = false;
-      // 潤飾層：原型階段 noop（正式版接 llm 服務）；回傳 polished=false 供 UI 標示
-      return { text: r.text, polished: false, done: true };
+      let text = r.text;
+      let polished = false;
+      const a = args ?? {};
+      if (settings.polish && text.length > 0) {
+        try {
+          text = await runPolish(text, a.locale ?? 'zh');
+          polished = true;
+        } catch (err) {
+          console.error('voice polish failed:', String((err && err.message) || err));
+        }
+      }
+      return { text, polished, done: true };
     });
 
     harness.handle('voice.reset', () => {

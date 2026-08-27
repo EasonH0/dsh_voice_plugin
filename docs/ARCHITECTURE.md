@@ -74,6 +74,8 @@ client: call('voice.end', {})                → 回傳 { text, done:true }（�
 | `autoGainControl` | `boolean` | `true` | 自動增益 |
 | `monitor` | `boolean` | `false` | 監聽輸入（降噪開則聽到降噪後效果） |
 | `polish` | `boolean` | `true` | LLM 潤飾 |
+| `polishProvider` | `string` | `''`（跟隨 DSH 預設） | 潤飾用 provider（＝DSH 已配置 API key 的路由） |
+| `polishModel` | `string` | `''`（跟隨 DSH 預設） | 潤飾用模型 |
 | `autoSend` | `boolean` | `false` | 自動發送 |
 | `hotkeys` | `{ toggle, ptt }` | 見核心 | 頁面內快捷鍵 |
 
@@ -101,3 +103,6 @@ idle ──開始──▶ starting ──權限/裝置就緒──▶ recording
 - 2026-08-27：雙引擎架構定案（sherpa 串流主引擎＋Whisper 可選）；證書 Apache-2.0；快捷鍵僅頁面內；未來桌面版為獨立專案，本插件代碼不預留全域熱鍵耦合。
 - 2026-08-27：新增降噪開關、音量進度條（輸入來源下方）、監聽開關（所聽即所得：降噪開則監聽降噪後音訊）。
 - 2026-08-27：串流協議採「上傳回傳承載增量」，避免 Client 輪詢。
+- 2026-08-27：**LLM 潤飾接上 DSH 的 `llm` 服務**（零安裝）：設定頁讀取 `llm.listProviders()`（DSH 已配置 API key 的 provider 路由）＋`llm.listModels(provider)`（模型目錄）＋`credentials.listRecords()`（已存憑證清單，只顯示不取值）。**「選擇哪個 key」＝選擇哪個 provider 路由**：key 值由 DSH adapter 自動使用，插件不經手敏感值。預設跟隨 `agentDefaultModel.currentSelection()`。
+- 2026-08-27：**UI 語言跟隨 DSH**：插件一切介面文字隨 DSH locale（zh／en）切換；動態原型以自管字典實現，正式版接 `locale` 字典註冊。潤飾輸出語文亦跟隨 DSH locale。
+- 2026-08-27：**語音輸入語言**（辨識語言）與 UI 語言分離：將來單獨提供選擇；現階段 sherpa 三語模型（粵・中・英）固定、無需選擇。
