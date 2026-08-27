@@ -44,6 +44,25 @@ function parseWav(path) {
 const { sampleRate, channels, bits, pcm } = parseWav(wavPath);
 console.log(`音訊：${sampleRate}Hz ${bits}-bit ${channels} 聲道，${(pcm.length / sampleRate).toFixed(2)} 秒`);
 
+// 線性插值重採樣至 16kHz（模型輸入採樣率）
+function resampleTo16k(pcm, srcRate) {
+  if (srcRate === 16000) return pcm;
+  const ratio = srcRate / 16000;
+  const outLen = Math.round(pcm.length / ratio);
+  const out = new Int16Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const pos = i * ratio;
+    const i0 = Math.floor(pos);
+    const frac = pos - i0;
+    const s0 = pcm[i0];
+    const s1 = i0 + 1 < pcm.length ? pcm[i0 + 1] : s0;
+    out[i] = Math.round(s0 + (s1 - s0) * frac);
+  }
+  return out;
+}
+const pcm16k = resampleTo16k(pcm, sampleRate);
+console.log(`已重採樣至 16000Hz（${(pcm16k.length / 16000).toFixed(2)} 秒）`);
+
 const { SherpaEngine } = await import('../src/engines/sherpa-engine.mjs');
 const engine = new SherpaEngine({ modelDir });
 const started = engine.start({ sampleRate: 16000 });
@@ -56,8 +75,8 @@ console.log('引擎啟動成功（串流三語：粵・中・英）');
 const chunkSize = 4000; // 250ms
 const t0 = Date.now();
 let lastLen = 0;
-for (let i = 0; i < pcm.length; i += chunkSize) {
-  const chunk = pcm.subarray(i, Math.min(i + chunkSize, pcm.length));
+for (let i = 0; i < pcm16k.length; i += chunkSize) {
+  const chunk = pcm16k.subarray(i, Math.min(i + chunkSize, pcm16k.length));
   const r = engine.push(chunk);
   if (r.text.length > lastLen) {
     console.log('  增量：', r.text.slice(lastLen));
@@ -68,4 +87,4 @@ const final = engine.end();
 const elapsed = (Date.now() - t0) / 1000;
 console.log('\n最終辨識結果：');
 console.log(final.text || '（無內容）');
-console.log(`\n耗時 ${elapsed.toFixed(2)} 秒（音訊 ${(pcm.length / sampleRate).toFixed(2)} 秒，RTF ${(elapsed / (pcm.length / sampleRate)).toFixed(3)}）`);
+console.log(`\n耗時 ${elapsed.toFixed(2)} 秒（音訊 ${(pcm16k.length / 16000).toFixed(2)} 秒，RTF ${(elapsed / (pcm16k.length / 16000)).toFixed(3)}）`);

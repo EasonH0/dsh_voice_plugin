@@ -31,6 +31,7 @@ export class SherpaEngine {
   start({ sampleRate } = {}) {
     if (this.started && this.recognizer) return { ok: true };
     const sr = Number.isFinite(sampleRate) ? sampleRate : this.sampleRate;
+    this.sampleRate = sr;
     try {
       this.sherpa = require('sherpa-onnx-node');
       const config = {
