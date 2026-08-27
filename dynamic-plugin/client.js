@@ -47,44 +47,49 @@ return {
     }
 
     // ---------- 內聯：快捷鍵（與 src/core/hotkeys.mjs 一致） ----------
+    const MOD_TOKEN_MAP = { ctrl: 'Control', alt: 'Alt', shift: 'Shift', meta: 'Meta', altleft: 'Alt', altright: 'Alt', controlleft: 'Control', controlright: 'Control', shiftleft: 'Shift', shiftright: 'Shift', metaleft: 'Meta', metaright: 'Meta' };
+    const EXTRA_CODES = [
+      'Backquote', 'Minus', 'Equal', 'BracketLeft', 'BracketRight', 'Backslash',
+      'Semicolon', 'Quote', 'Comma', 'Period', 'Slash', 'Space', 'Enter', 'Tab',
+      'Home', 'End', 'PageUp', 'PageDown', 'Insert', 'Delete',
+      'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+    ];
+    function normalizeToken(part) {
+      const lower = String(part).toLowerCase().trim();
+      if (MOD_TOKEN_MAP[lower]) return MOD_TOKEN_MAP[lower];
+      const std = String(part).match(/^(key)([a-z])$/i) ?? String(part).match(/^(digit)([0-9])$/i) ?? String(part).match(/^(f)([1-9]|1[0-2])$/i);
+      if (std) {
+        const kind = std[1][0].toUpperCase() + std[1].slice(1).toLowerCase();
+        return kind === 'F' ? kind + std[2] : kind + std[2].toUpperCase();
+      }
+      const extra = EXTRA_CODES.find((c) => c.toLowerCase() === lower);
+      return extra ?? null;
+    }
     function parseHotkey(spec) {
       if (typeof spec !== 'string' || spec.trim().length === 0) return null;
       const parts = spec.split('+').map((p) => p.trim());
-      const mods = { ctrl: false, alt: false, shift: false, meta: false };
-      let code = null;
-      const EXTRA_CODES = [
-        'Backquote', 'Minus', 'Equal', 'BracketLeft', 'BracketRight', 'Backslash',
-        'Semicolon', 'Quote', 'Comma', 'Period', 'Slash', 'Space', 'Enter', 'Tab',
-        'Home', 'End', 'PageUp', 'PageDown', 'Insert', 'Delete',
-        'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-      ];
-      function normalizeCode(part) {
-        const std = part.match(/^(key)([a-z])$/i) ?? part.match(/^(digit)([0-9])$/i) ?? part.match(/^(f)([1-9]|1[0-2])$/i);
-        if (std) {
-          const kind = std[1][0].toUpperCase() + std[1].slice(1).toLowerCase();
-          return kind === 'F' ? kind + std[2] : kind + std[2].toUpperCase();
-        }
-        const extra = EXTRA_CODES.find((c) => c.toLowerCase() === part.toLowerCase());
-        return extra ?? null;
-      }
+      if (parts.some((p) => p.length === 0)) return null;
+      const out = [];
       for (const part of parts) {
-        const lower = part.toLowerCase();
-        if (['ctrl', 'alt', 'shift', 'meta'].includes(lower)) {
-          mods[lower] = true;
-        } else {
-          const normalized = normalizeCode(part);
-          if (normalized === null) return null;
-          if (code !== null) return null;
-          code = normalized;
-        }
+        const token = normalizeToken(part);
+        if (token === null) return null;
+        out.push(token);
       }
-      if (code === null) return null;
-      return { ...mods, code };
+      return out;
     }
-    function matchesHotkey(event, hotkey) {
-      const h = typeof hotkey === 'string' ? parseHotkey(hotkey) : hotkey;
-      if (!h || !event || typeof event.code !== 'string') return false;
-      return event.code === h.code && !!event.ctrlKey === h.ctrl && !!event.altKey === h.alt && !!event.shiftKey === h.shift && !!event.metaKey === h.meta;
+    function eventToToken(event) {
+      if (!event || typeof event.code !== 'string') return null;
+      if (event.repeat) return null;
+      return normalizeToken(event.code);
+    }
+    function matchesKeySequence(buffer, target) {
+      if (!Array.isArray(buffer) || !Array.isArray(target) || target.length === 0) return false;
+      const n = target.length;
+      if (buffer.length < n) return false;
+      for (let i = 0; i < n; i++) {
+        if (buffer[buffer.length - n + i] !== target[i]) return false;
+      }
+      return true;
     }
 
     // ---------- 內聯：音訊工具（與 src/core 一致） ----------
@@ -148,11 +153,12 @@ return {
         'settings.engine.sherpa': 'sherpa-onnx 流式（粤・中・英）',
         'settings.engine.whisper': 'Whisper large-v3（安装阶段启用）',
         'settings.hotkeys': '快捷键',
-        'settings.hotkeys.hint': '点击「录制快捷键」后按下想要的组合键（先按住修饰键再按主键，例如 Ctrl+Alt+空格），按 Esc 取消。',
+        'settings.hotkeys.hint': '点击「录制快捷键」后依次按下想要的键（任意数量组合，例如 C+V+B+N），按 Enter 完成、Esc 取消。',
         'settings.hotkeys.toggleHint': '开始／停止',
-        'settings.hotkeys.pttHint': '按住说话',
-        'settings.hotkeys.capture': '按下组合键（Esc 取消）…',
+        'settings.hotkeys.pttHint': '开始／停止（备用）',
+        'settings.hotkeys.capture': '依次按键…（Enter 完成，Esc 取消）',
         'settings.hotkeys.record': '录制快捷键',
+        'settings.hotkeys.recorded': '已录：{keys}（Enter 完成，Esc 取消）',
         'settings.audio': '音频处理',
         'settings.noise': '降噪（抑制环境噪音）',
         'settings.echo': '回声消除',
@@ -164,6 +170,7 @@ return {
         'settings.stopOnMicOff': '关麦后立即停止输出（放弃识别收尾与润色）',
         'settings.llm': '润色模型（DSH 模型）',
         'settings.llm.provider': 'API Key／Provider',
+        'settings.llm.unregistered': '（未连接）',
         'settings.llm.follow': '跟随 DSH 默认（{value}）',
         'settings.llm.follow.none': '跟随 DSH 默认',
         'settings.llm.model': '模型',
@@ -190,11 +197,12 @@ return {
         'settings.engine.sherpa': 'sherpa-onnx streaming (Cantonese/Chinese/English)',
         'settings.engine.whisper': 'Whisper large-v3 (enabled at install stage)',
         'settings.hotkeys': 'Hotkeys',
-        'settings.hotkeys.hint': 'Click "Record hotkey", then press the combination (hold modifiers first, e.g. Ctrl+Alt+Space). Press Esc to cancel.',
+        'settings.hotkeys.hint': 'Click "Record hotkey", then press keys in order (any number, e.g. C+V+B+N). Press Enter to finish, Esc to cancel.',
         'settings.hotkeys.toggleHint': 'Start / stop',
-        'settings.hotkeys.pttHint': 'Hold to talk',
-        'settings.hotkeys.capture': 'Press the key combination (Esc to cancel)…',
+        'settings.hotkeys.pttHint': 'Start / stop (alternate)',
+        'settings.hotkeys.capture': 'Press keys in sequence… (Enter to finish, Esc to cancel)',
         'settings.hotkeys.record': 'Record hotkey',
+        'settings.hotkeys.recorded': 'Recorded: {keys} (Enter to finish, Esc to cancel)',
         'settings.audio': 'Audio processing',
         'settings.noise': 'Noise suppression',
         'settings.echo': 'Echo cancellation',
@@ -206,6 +214,7 @@ return {
         'settings.stopOnMicOff': 'Stop output immediately on mic off (skip finalize and polish)',
         'settings.llm': 'Polish model (DSH models)',
         'settings.llm.provider': 'API key / Provider',
+        'settings.llm.unregistered': ' (not connected)',
         'settings.llm.follow': 'Follow DSH default ({value})',
         'settings.llm.follow.none': 'Follow DSH default',
         'settings.llm.model': 'Model',
@@ -284,6 +293,7 @@ return {
 
     let capturingHotkey = null;
     let meterHandle = null;
+    let keyBuffer = []; // 快捷鍵序列滑動窗（最近 12 個 token）
 
     function useSettings() {
       const [s, setS] = React.useState(settingsStore.get());
@@ -480,32 +490,28 @@ return {
       if (typeof window === 'undefined' || !window.addEventListener) return;
       const onKeyDown = (e) => {
         if (capturingHotkey) return;
+        const token = eventToToken(e);
+        if (token === null) return;
+        keyBuffer.push(token);
+        if (keyBuffer.length > 12) keyBuffer = keyBuffer.slice(-12);
         const s = settingsStore.get();
         const hkToggle = parseHotkey(s.hotkeys.toggle);
         const hkPtt = parseHotkey(s.hotkeys.ptt);
-        if (hkToggle && matchesHotkey(e, hkToggle) && !e.repeat) {
+        if (hkToggle && matchesKeySequence(keyBuffer, hkToggle)) {
+          keyBuffer = [];
           e.preventDefault();
           voice.toggle();
           return;
         }
-        if (hkPtt && matchesHotkey(e, hkPtt) && !e.repeat) {
+        if (hkPtt && matchesKeySequence(keyBuffer, hkPtt)) {
+          keyBuffer = [];
           e.preventDefault();
-          voiceStart();
-        }
-      };
-      const onKeyUp = (e) => {
-        if (capturingHotkey) return;
-        const hkPtt = parseHotkey(settingsStore.get().hotkeys.ptt);
-        if (hkPtt && matchesHotkey(e, hkPtt)) {
-          e.preventDefault();
-          voiceStop();
+          voice.toggle();
         }
       };
       window.addEventListener('keydown', onKeyDown);
-      window.addEventListener('keyup', onKeyUp);
       return () => {
         window.removeEventListener('keydown', onKeyDown);
-        window.removeEventListener('keyup', onKeyUp);
       };
     });
 
@@ -532,15 +538,41 @@ return {
         70% { transform: scale(1.5); opacity: 0; }
         100% { transform: scale(1.5); opacity: 0; }
       }
-      .dsh-voice-page { display: flex; flex-direction: column; gap: 14px; padding: 4px 0; }
-      .dsh-voice-row { display: flex; align-items: center; gap: 12px; }
-      .dsh-voice-row-label { flex: 0 0 120px; opacity: 0.8; font-size: 13px; }
-      .dsh-voice-row select, .dsh-voice-row input[type=text] {
-        flex: 1; min-width: 0; background: transparent; color: inherit;
-        border: 1px solid rgba(127,127,127,0.35); border-radius: 6px; padding: 5px 8px; font: inherit;
+      .dsh-voice-page { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; }
+      .dsh-voice-row {
+        display: flex; align-items: center; gap: 12px; padding: 10px 0;
+        border-bottom: 1px solid var(--dsw-alias-border-l1, transparent);
       }
-      .dsh-voice-check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
-      .dsh-voice-check input { margin: 0; }
+      .dsh-voice-row-last { border-bottom: none; }
+      .dsh-voice-row-label {
+        flex: 0 0 110px; opacity: 1; font-size: 13px;
+        color: var(--dsw-alias-label-secondary, inherit);
+      }
+      .dsh-voice-row select, .dsh-voice-row input[type=text] {
+        flex: 1; min-width: 0; background: var(--dsw-alias-bg-layer-1, transparent);
+        color: var(--dsw-alias-label-primary, inherit);
+        border: 1px solid var(--dsw-alias-border-l1, rgba(127,127,127,0.35));
+        border-radius: 6px; padding: 5px 8px; font: inherit;
+      }
+      .dsh-voice-switch-row {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 5px 0; cursor: pointer; font-size: 13px;
+      }
+      .dsh-voice-switch-label { color: var(--dsw-alias-label-primary, inherit); }
+      .dsh-switch { position: relative; width: 34px; height: 20px; flex: 0 0 auto; }
+      .dsh-switch input { position: absolute; opacity: 0; pointer-events: none; margin: 0; }
+      .dsh-switch-track {
+        position: absolute; inset: 0; border-radius: 999px;
+        background: var(--dsw-alias-border-l1, rgba(127,127,127,0.4));
+        transition: background .15s ease;
+      }
+      .dsh-switch-thumb {
+        position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+        border-radius: 50%; background: var(--dsw-alias-label-primary, #fff);
+        transition: transform .15s ease;
+      }
+      .dsh-switch input:checked ~ .dsh-switch-track { background: var(--dsw-alias-brand-primary, #4c9aff); }
+      .dsh-switch input:checked ~ .dsh-switch-thumb { transform: translateX(14px); }
       .dsh-voice-hint { font-size: 12px; opacity: 0.6; }
       .dsh-voice-meter {
         flex: 1; height: 8px; border-radius: 4px; overflow: hidden;
@@ -660,15 +692,17 @@ return {
       );
     }
     function Check(props) {
-      return React.createElement(
-        'label',
-        { className: 'dsh-voice-check' },
-        React.createElement('input', {
-          type: 'checkbox',
-          checked: !!props.checked,
-          onChange: (e) => settingsStore.set({ [props.name]: e.target.checked }),
-        }),
-        React.createElement('span', null, props.label),
+      return React.createElement('label', { className: 'dsh-voice-switch-row' },
+        React.createElement('span', { className: 'dsh-voice-switch-label' }, props.label),
+        React.createElement('span', { className: 'dsh-switch' },
+          React.createElement('input', {
+            type: 'checkbox',
+            checked: !!props.checked,
+            onChange: (e) => settingsStore.set({ [props.name]: e.target.checked }),
+          }),
+          React.createElement('span', { className: 'dsh-switch-track' }),
+          React.createElement('span', { className: 'dsh-switch-thumb' }),
+        ),
       );
     }
 
@@ -708,6 +742,7 @@ return {
       const [devices, setDevices] = React.useState([]);
       const [level, setLevel] = React.useState(0);
       const [capture, setCapture] = React.useState(null);
+      const [recorded, setRecorded] = React.useState([]);
       const [catalog, setCatalog] = React.useState(null);
       const [modelList, setModelList] = React.useState([]);
 
@@ -808,31 +843,34 @@ return {
       }, [s.monitor]);
 
       // 快捷鍵錄製（修飾鍵按下不結束，等待主鍵組合；Esc 取消）
+      // 快捷鍵錄製：依次收集任意數量按鍵（Enter 完成、Esc 取消）
       React.useEffect(() => {
         capturingHotkey = capture;
         if (!capture || typeof window === 'undefined') return;
-        const isModifier = (code) => code === 'AltLeft' || code === 'AltRight' || code === 'ControlLeft' || code === 'ControlRight' || code === 'ShiftLeft' || code === 'ShiftRight' || code === 'MetaLeft' || code === 'MetaRight';
+        let collected = [];
         const onKey = (e) => {
           e.preventDefault();
           e.stopPropagation();
           if (e.code === 'Escape') {
             capturingHotkey = null;
             setCapture(null);
+            setRecorded([]);
             return;
           }
-          if (isModifier(e.code)) return; // 修飾鍵（含左右變體）：等待主鍵組合
-          const parts = [];
-          if (e.ctrlKey) parts.push('Ctrl');
-          if (e.altKey) parts.push('Alt');
-          if (e.shiftKey) parts.push('Shift');
-          if (e.metaKey) parts.push('Meta');
-          parts.push(e.code);
-          const parsed = parseHotkey(parts.join('+'));
-          if (parsed) {
-            settingsStore.set({ hotkeys: { ...settingsStore.get().hotkeys, [capture]: parts.join('+') } });
+          if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+            if (collected.length > 0) {
+              settingsStore.set({ hotkeys: { ...settingsStore.get().hotkeys, [capture]: collected.join('+') } });
+            }
+            capturingHotkey = null;
+            setCapture(null);
+            setRecorded([]);
+            return;
           }
-          capturingHotkey = null;
-          setCapture(null);
+          const token = eventToToken(e);
+          if (token === null) return;
+          if (collected.length >= 12) return;
+          collected.push(token);
+          setRecorded(collected.map((t) => t));
         };
         window.addEventListener('keydown', onKey, true);
         return () => {
@@ -909,7 +947,9 @@ return {
                 type: 'button',
                 className: 'dsh-voice-btn' + (capture === 'toggle' ? ' capture' : ''),
                 onClick: () => setCapture(capture === 'toggle' ? null : 'toggle'),
-              }, capture === 'toggle' ? tt('settings.hotkeys.capture') : tt('settings.hotkeys.record')),
+              }, capture === 'toggle'
+                ? (recorded.length > 0 ? tt('settings.hotkeys.recorded', { keys: recorded.join(' + ') }) : tt('settings.hotkeys.capture'))
+                : tt('settings.hotkeys.record')),
             ),
             React.createElement('div', { className: 'dsh-voice-row' },
               React.createElement('span', { className: 'dsh-voice-kbd' }, s.hotkeys.ptt),
@@ -918,7 +958,9 @@ return {
                 type: 'button',
                 className: 'dsh-voice-btn' + (capture === 'ptt' ? ' capture' : ''),
                 onClick: () => setCapture(capture === 'ptt' ? null : 'ptt'),
-              }, capture === 'ptt' ? tt('settings.hotkeys.capture') : tt('settings.hotkeys.record')),
+              }, capture === 'ptt'
+                ? (recorded.length > 0 ? tt('settings.hotkeys.recorded', { keys: recorded.join(' + ') }) : tt('settings.hotkeys.capture'))
+                : tt('settings.hotkeys.record')),
             ),
           ),
         ),
@@ -949,7 +991,7 @@ return {
                 onChange: (v) => settingsStore.set({ polishProvider: v, polishModel: '' }),
                 options: [
                   { value: '', label: defaultLabel },
-                  ...(providers === null ? [] : providers.map((p) => ({ value: p.id, label: p.name + '（' + p.id + '）' }))),
+                  ...(providers === null ? [] : providers.map((p) => ({ value: p.id, label: p.name + (p.registered ? '' : tt('settings.llm.unregistered')) }))),
                 ],
               }),
             ),

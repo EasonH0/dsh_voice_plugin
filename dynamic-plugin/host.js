@@ -184,9 +184,30 @@ return {
       return settings;
     });
 
-    // DSH 已有的 provider（= 已配置 API key 的路由）、預設模型、已存憑證清單（不含值）
+    // DSH 已有的 provider（= 已配置 API key 的路由）＋可配置目錄、預設模型、已存憑證清單（不含值）
     harness.handle('llm.catalog', async () => {
-      const providers = llm ? llm.listProviders().map((p) => ({ id: p.id, name: p.name })) : [];
+      const providers = [];
+      const seen = new Set();
+      if (llm) {
+        try {
+          for (const p of llm.listProviders()) {
+            if (p && typeof p.id === 'string' && !seen.has(p.id)) {
+              seen.add(p.id);
+              providers.push({ id: p.id, name: p.name ?? p.id, registered: true });
+            }
+          }
+        } catch (_) {}
+        if (typeof llm.listConfigurableProviders === 'function') {
+          try {
+            for (const p of llm.listConfigurableProviders()) {
+              if (p && typeof p.provider === 'string' && !seen.has(p.provider)) {
+                seen.add(p.provider);
+                providers.push({ id: p.provider, name: p.displayName ?? p.provider, registered: false });
+              }
+            }
+          } catch (_) {}
+        }
+      }
       let defaultProvider = '';
       let defaultModel = '';
       try {
