@@ -9,7 +9,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const https = require('node:https');
-const { Readable } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const { Transform } = require('node:stream');
 
@@ -38,28 +37,7 @@ const WHISPER_FILES = [
   'onnx/decoder_model_merged_quantized.onnx',
 ];
 
-function fetchBuf(url, redirects = 3) {
-  return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'user-agent': 'dsh-voice-input-models' } }, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirects > 0) {
-        res.resume();
-        resolve(fetchBuf(new URL(res.headers.location, url).toString(), redirects - 1));
-        return;
-      }
-      if (res.statusCode !== 200) {
-        res.resume();
-        reject(new Error('HTTP ' + res.statusCode + ' for ' + url));
-        return;
-      }
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end', () => resolve(Buffer.concat(chunks)));
-      res.on('error', reject);
-    }).on('error', reject);
-  });
-}
-
-async function downloadOne(hfRepo, relPath, destRel) {
+async function downloadOne(hfRepo, relPath, destRel, retries = 3) {
   const dest = path.join(OUT_DIR, destRel);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   if (fs.existsSync(dest) && fs.statSync(dest).size > 1000) {
@@ -68,34 +46,45 @@ async function downloadOne(hfRepo, relPath, destRel) {
   }
   const url = `${HF_BASE}/${hfRepo}/resolve/main/${relPath}`;
   const part = dest + '.part';
-  console.log('  下載：', destRel);
-  const res = await new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'user-agent': 'dsh-voice-input-models' } }, (r) => {
-      if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location) {
-        r.resume();
-        https.get(new URL(r.headers.location, url).toString(), { headers: { 'user-agent': 'dsh-voice-input-models' } }, (r2) => resolve(r2)).on('error', reject);
-        return;
-      }
-      if (r.statusCode !== 200) {
-        r.resume();
-        reject(new Error('HTTP ' + r.statusCode + ' for ' + url));
-        return;
-      }
-      resolve(r);
-    }).on('error', reject);
-  });
-  const total = Number(res.headers['content-length'] ?? 0);
-  let done = 0;
-  const counter = new Transform({
-    transform(chunk, _enc, cb) {
-      done += chunk.length;
-      if (total > 0) process.stdout.write('\r    ' + ((done / total) * 100).toFixed(1) + '%');
-      cb(null, chunk);
-    },
-  });
-  await pipeline(Readable.fromWeb ? Readable.fromWeb(res) : res, counter, fs.createWriteStream(part));
-  fs.renameSync(part, dest);
-  console.log('  完成：', destRel);
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    console.log('  下載：', destRel);
+    try {
+      const res = await new Promise((resolve, reject) => {
+        https.get(url, { headers: { 'user-agent': 'dsh-voice-input-models' } }, (r) => {
+          if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location) {
+            r.resume();
+            https.get(new URL(r.headers.location, url).toString(), { headers: { 'user-agent': 'dsh-voice-input-models' } }, (r2) => resolve(r2)).on('error', reject);
+            return;
+          }
+          if (r.statusCode !== 200) {
+            r.resume();
+            reject(new Error('HTTP ' + r.statusCode + ' for ' + url));
+            return;
+          }
+          resolve(r);
+        }).on('error', reject);
+      });
+      const total = Number(res.headers['content-length'] ?? 0);
+      let done = 0;
+      const counter = new Transform({
+        transform(chunk, _enc, cb) {
+          done += chunk.length;
+          if (total > 0) process.stdout.write('\r    ' + ((done / total) * 100).toFixed(1) + '%');
+          cb(null, chunk);
+        },
+      });
+      // https.get 回傳的是 Node Readable（IncomingMessage），直接進 pipeline
+      // （切勿包 Readable.fromWeb：IncomingMessage 不是 Web ReadableStream，Node 24 會崩潰）
+      await pipeline(res, counter, fs.createWriteStream(part));
+      fs.renameSync(part, dest);
+      console.log('  完成：', destRel);
+      return;
+    } catch (err) {
+      try { fs.rmSync(part, { force: true }); } catch (_) {}
+      if (attempt === retries) throw err;
+      console.log('  重試 (' + attempt + '/' + retries + ')：', err.message);
+    }
+  }
 }
 
 async function main() {
