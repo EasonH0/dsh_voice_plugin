@@ -151,6 +151,7 @@ return {
       let provider = settings.polishProvider;
       let model = settings.polishModel;
       if (!provider || !model) {
+        // 跟隨會話：DSH 的會話模型選擇（會話選單寫入的就是這份 currentSelection）
         const sel = agentDefaultModel ? agentDefaultModel.currentSelection() : {};
         if (!provider) provider = sel.provider;
         if (!model) model = sel.model;

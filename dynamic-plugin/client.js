@@ -171,8 +171,8 @@ return {
         'settings.llm': '润色模型（DSH 模型）',
         'settings.llm.provider': 'API Key／Provider',
         'settings.llm.unregistered': '（未连接）',
-        'settings.llm.follow': '跟随 DSH 默认（{value}）',
-        'settings.llm.follow.none': '跟随 DSH 默认',
+        'settings.llm.follow': '跟随会话（{value}）',
+        'settings.llm.follow.none': '跟随会话',
         'settings.llm.model': '模型',
         'settings.llm.keys': 'DSH 已配置的凭据',
         'settings.llm.nokeys': '（未检测到已配置的凭据）',
@@ -215,8 +215,8 @@ return {
         'settings.llm': 'Polish model (DSH models)',
         'settings.llm.provider': 'API key / Provider',
         'settings.llm.unregistered': ' (not connected)',
-        'settings.llm.follow': 'Follow DSH default ({value})',
-        'settings.llm.follow.none': 'Follow DSH default',
+        'settings.llm.follow': 'Follow session ({value})',
+        'settings.llm.follow.none': 'Follow session',
         'settings.llm.model': 'Model',
         'settings.llm.keys': 'Credentials configured in DSH',
         'settings.llm.nokeys': '(no configured credentials detected)',
@@ -988,7 +988,18 @@ return {
               React.createElement('span', { className: 'dsh-voice-hint', style: { flex: '0 0 96px' } }, tt('settings.llm.provider')),
               VoiceSelect({
                 value: s.polishProvider,
-                onChange: (v) => settingsStore.set({ polishProvider: v, polishModel: '' }),
+                onChange: (v) => {
+                  if (v === '') {
+                    settingsStore.set({ polishProvider: '', polishModel: '' });
+                    return;
+                  }
+                  host.call('llm.models', { provider: v })
+                    .then((list) => {
+                      const first = Array.isArray(list) && list.length > 0 ? list[0].id : '';
+                      settingsStore.set({ polishProvider: v, polishModel: first });
+                    })
+                    .catch(() => settingsStore.set({ polishProvider: v, polishModel: '' }));
+                },
                 options: [
                   { value: '', label: defaultLabel },
                   ...(providers === null ? [] : providers.map((p) => ({ value: p.id, label: p.name + (p.registered ? '' : tt('settings.llm.unregistered')) }))),
@@ -999,10 +1010,19 @@ return {
               React.createElement('span', { className: 'dsh-voice-hint', style: { flex: '0 0 96px' } }, tt('settings.llm.model')),
               VoiceSelect({
                 value: s.polishModel,
-                onChange: (v) => settingsStore.set({ polishModel: v }),
+                onChange: (v) => {
+                  if (v === '') {
+                    settingsStore.set({ polishProvider: '', polishModel: '' });
+                    return;
+                  }
+                  // 選擇具體模型：provider 自動跳到對應的 provider
+                  settingsStore.set({ polishModel: v, polishProvider: activeProvider });
+                },
                 options: [
                   { value: '', label: defaultLabel },
                   ...modelList.map((m) => ({ value: m.id, label: m.name })),
+                  // 保險：目前值不在清單（例如尚未載入）時仍可顯示
+                  ...(s.polishModel && !modelList.some((m) => m.id === s.polishModel) ? [{ value: s.polishModel, label: s.polishModel }] : []),
                 ],
               }),
             ),
