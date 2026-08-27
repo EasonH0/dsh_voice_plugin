@@ -1,17 +1,63 @@
 {
-  "name": "dsh_voice_plugin",
-  "version": "0.1.0",
-  "description": "DSH 本地語音輸入插件：sherpa-onnx 串流粵中英辨識、Whisper 可選引擎、LLM 潤飾層",
+  "name": "dsh-voice-input",
+  "version": "1.0.0",
+  "description": "DSH 语音输入插件：本地语音识别（sherpa-onnx 流式粤中英 + Whisper large-v3 高准确模式）+ LLM 润色，语音不离开本机",
   "type": "module",
-  "license": "Apache-2.0",
-  "private": false,
-  "scripts": {
-    "test": "node --test --test-isolation=none \"test/*.test.mjs\""
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-connection"
+      ],
+      "platform": "web"
+    }
   },
   "dependencies": {
-    "@xenova/transformers": "^2.17.2",
-    "ffmpeg-static": "^5.3.0",
-    "sherpa-onnx-node": "^1.13.6"
+    "sherpa-onnx-node": "^1.13.5",
+    "@xenova/transformers": "^2.17.2"
+  },
+  "bin": {
+    "dsh-voice-input-models": "tools/download-models.cjs"
+  },
+  "scripts": {
+    "test": "node --test --test-isolation=none \"test/*.test.mjs\"",
+    "smoke:sherpa": "node scripts/recognize-wav.mjs",
+    "smoke:whisper": "node scripts/recognize-whisper.mjs"
+  },
+  "files": [
+    "lib/**/*",
+    "cordis.patch.yml",
+    "tools/",
+    "scripts/",
+    "src/",
+    "test/",
+    "docs/",
+    "README.md",
+    "INSTALL.md",
+    "LICENSE"
+  ],
+  "license": "Apache-2.0",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "voice",
+    "speech",
+    "asr",
+    "cantonese",
+    "whisper",
+    "sherpa-onnx"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
   },
   "allowScripts": {
     "ffmpeg-static@5.3.0": true,

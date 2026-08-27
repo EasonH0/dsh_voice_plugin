@@ -1,0 +1,29 @@
+# 安装期 bundle patch：dsh plugin --profile <name> add dsh-voice-input
+# 后由插件声明（dsh.bundle.patch）自动加入 layer 栈。
+# 行内 config 只传给 host 半；client 半由 host 经 /voice-input.config
+# loopback RPC 同步生效配置。
+- insert:
+    - id: voice-input
+      name: 'dsh-voice-input'
+      inject: [connection]
+      config:
+        # 引擎：auto（有模型用 sherpa 流式；缺模型回退浏览器 Web Speech 兜底）
+        # 可选：'sherpa'（流式低延迟）| 'whisper'（高准确、中英混说强、非流式）
+        engine: auto
+        # 本地模型目录：留空 = 自动使用 <profile>/dsh-voice-input-models
+        # 首次使用前运行 npx dsh-voice-input-models 下载模型
+        modelDir: ''
+        # 页面内快捷键（按键序列，+ 分隔）：开始/停止录音
+        hotkey: 'Alt+KeyM'
+        # 备用快捷键（开始/停止）
+        hotkeyAlt: 'Alt+KeyV'
+        # LLM 润色：修错字、标点、断句（走 DSH 会话模型）
+        polish: true
+        # 转写完成后自动发送
+        autoSend: false
+        # 降噪（浏览器语音处理）
+        noiseSuppression: true
+        # 回声消除（无回音环境慎开）
+        echoCancellation: false
+        # 自动增益（自动放大轻声收音）
+        autoGainControl: true
