@@ -19,7 +19,7 @@ DSH 語音輸入插件（DeepSeek Harness 插件）：輸入欄麥克風按鈕�
 見 [INSTALL.md](INSTALL.md)。
 
 ```bash
-dsh plugin --profile <你的 profile> add github:EasonH0/dsh_voice_plugin
+dsh plugin --profile web add github:EasonH0/dsh_voice_plugin
 npx dsh-voice-input-models            # 下載語音模型（首次一次；--whisper 加高準確引擎）
 ```
 

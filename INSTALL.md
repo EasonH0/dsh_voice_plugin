@@ -12,7 +12,7 @@ DSH 語音輸入插件：本地語音辨識（語音不離開本機）＋ LLM �
 
 ```bash
 # 1. 安裝插件（GitHub 源碼；建議鎖定 commit）
-dsh plugin --profile <你的 profile> add github:EasonH0/dsh_voice_plugin
+dsh plugin --profile web add github:EasonH0/dsh_voice_plugin
 
 # 2. 若 pnpm 要求授權建置腳本，依提示在該 profile 的 pnpm-workspace.yaml
 #    加入 allowBuilds 後重跑 add：
@@ -24,8 +24,8 @@ dsh plugin --profile <你的 profile> add github:EasonH0/dsh_voice_plugin
 或本機路徑／npm（未來發布後）：
 
 ```bash
-dsh plugin --profile <你的 profile> add ./dsh_voice_plugin          # 本機路徑
-dsh plugin --profile <你的 profile> add dsh-voice-input             # npm（發布後）
+dsh plugin --profile web add ./dsh_voice_plugin          # 本機路徑
+dsh plugin --profile web add dsh-voice-input             # npm（發布後）
 ```
 
 ## 下載語音模型（首次使用前一次）
@@ -64,7 +64,7 @@ npx dsh-voice-input-models --dir "D:\dsh-models"
         autoGainControl: true   # 自動增益
 ```
 
-改完重啟 DSH 生效：`dsh --profile <你的 profile>`
+改完重啟 DSH 生效：`dsh --profile web`
 
 ## 使用
 
@@ -83,7 +83,7 @@ npx dsh-voice-input-models --dir "D:\dsh-models"
 ## 解除安裝
 
 ```bash
-dsh plugin --profile <你的 profile> remove dsh-voice-input
+dsh plugin --profile web remove dsh-voice-input
 ```
 
 ## 證書
