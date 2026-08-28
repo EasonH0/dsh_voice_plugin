@@ -1,88 +1,63 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
-import {
-  DEFAULTS,
-  DEFAULT_HOTKEYS,
-  normalizeSettings,
-  normalizeHotkeys,
-  validateSetting,
-  settingsEqual,
-} from '../src/core/settings.mjs';
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { DEFAULT_SETTINGS, LANGS, RECORDING_MODES, sanitizeSettings } from '../src/core/settings.js'
 
-test('DEFAULTS 形狀完整', () => {
-  assert.equal(DEFAULTS.engine, 'sherpa');
-  assert.equal(DEFAULTS.recordMode, 'toggle');
-  assert.equal(DEFAULTS.noiseSuppression, true);
-  assert.equal(DEFAULTS.echoCancellation, false);
-  assert.equal(DEFAULTS.autoGainControl, true);
-  assert.equal(DEFAULTS.polish, true);
-  assert.equal(DEFAULTS.polishProvider, '');
-  assert.equal(DEFAULTS.polishModel, '');
-  assert.equal(DEFAULTS.autoSend, false);
-  assert.equal(DEFAULTS.stopOnMicOff, false);
-  assert.deepEqual(DEFAULTS.hotkeys, DEFAULT_HOTKEYS);
-});
+test('DEFAULT_SETTINGS 預設值符合決策', () => {
+  assert.equal(DEFAULT_SETTINGS.lang, 'zh-HK')
+  assert.equal(DEFAULT_SETTINGS.recordingMode, 'toggle')
+  assert.equal(DEFAULT_SETTINGS.polish, true)
+  assert.equal(DEFAULT_SETTINGS.autoSend, false)
+  assert.equal(DEFAULT_SETTINGS.stopOnMute, false)
+  assert.equal(DEFAULT_SETTINGS.noiseSuppression, true)
+  assert.equal(DEFAULT_SETTINGS.echoCancellation, false)
+  assert.equal(DEFAULT_SETTINGS.autoGainControl, true)
+  assert.equal(DEFAULT_SETTINGS.listen, false)
+  assert.deepEqual(LANGS, ['zh-HK', 'zh-CN', 'en'])
+  assert.deepEqual(RECORDING_MODES, ['toggle', 'ptt'])
+})
 
-test('normalizeSettings 空輸入回預設', () => {
-  const s = normalizeSettings(undefined);
-  assert.deepEqual(s, { ...DEFAULTS, hotkeys: { ...DEFAULT_HOTKEYS } });
-});
+test('sanitizeSettings 空輸入補全預設', () => {
+  const s = sanitizeSettings(undefined)
+  assert.deepEqual(s, { ...DEFAULT_SETTINGS })
+  const s2 = sanitizeSettings({})
+  assert.deepEqual(s2, { ...DEFAULT_SETTINGS })
+})
 
-test('normalizeSettings 合併合法值', () => {
-  const s = normalizeSettings({
-    engine: 'whisper',
-    autoSend: true,
-    polish: false,
-    polishProvider: 'deepseek',
-    polishModel: 'deepseek-chat',
-    stopOnMicOff: true,
-    echoCancellation: true,
-  });
-  assert.equal(s.engine, 'whisper');
-  assert.equal(s.autoSend, true);
-  assert.equal(s.polish, false);
-  assert.equal(s.polishProvider, 'deepseek');
-  assert.equal(s.polishModel, 'deepseek-chat');
-  assert.equal(s.stopOnMicOff, true);
-  assert.equal(s.echoCancellation, true);
-  assert.equal(s.recordMode, 'toggle');
-});
+test('sanitizeSettings 非法枚舉回退預設', () => {
+  const s = sanitizeSettings({ lang: 'ja-JP', recordingMode: 'hold' })
+  assert.equal(s.lang, 'zh-HK')
+  assert.equal(s.recordingMode, 'toggle')
+})
 
-test('normalizeSettings 未知鍵丟棄', () => {
-  const s = normalizeSettings({ nonsense: 1, engine: 'sherpa' });
-  assert.ok(!('nonsense' in s));
-});
+test('sanitizeSettings 合法枚舉保留', () => {
+  const s = sanitizeSettings({ lang: 'zh-CN', recordingMode: 'ptt' })
+  assert.equal(s.lang, 'zh-CN')
+  assert.equal(s.recordingMode, 'ptt')
+})
 
-test('normalizeSettings 非法值回退預設', () => {
-  const s = normalizeSettings({ engine: 'watson', noiseSuppression: 'yes' });
-  assert.equal(s.engine, 'sherpa');
-  assert.equal(s.noiseSuppression, true);
-});
+test('sanitizeSettings 布林字串轉型', () => {
+  const s = sanitizeSettings({
+    polish: 'false',
+    autoSend: 'true',
+    noiseSuppression: 0,
+    echoCancellation: 1,
+  })
+  assert.equal(s.polish, false)
+  assert.equal(s.autoSend, true)
+  assert.equal(s.noiseSuppression, false)
+  assert.equal(s.echoCancellation, true)
+})
 
-test('validateSetting 各鍵合法/非法', () => {
-  assert.equal(validateSetting('engine', 'whisper'), 'whisper');
-  assert.equal(validateSetting('engine', 'x'), undefined);
-  assert.equal(validateSetting('recordMode', 'ptt'), 'ptt');
-  assert.equal(validateSetting('monitor', false), false);
-  assert.equal(validateSetting('monitor', 1), undefined);
-  assert.equal(validateSetting('inputDeviceId', 'abc'), 'abc');
-  assert.equal(validateSetting('inputDeviceId', 5), undefined);
-  assert.equal(validateSetting('polishProvider', 'deepseek'), 'deepseek');
-  assert.equal(validateSetting('polishProvider', 9), undefined);
-  assert.equal(validateSetting('polishModel', ''), '');
-  assert.equal(validateSetting('stopOnMicOff', true), true);
-  assert.equal(validateSetting('stopOnMicOff', 'yes'), undefined);
-});
+test('sanitizeSettings 空字串回退預設', () => {
+  const s = sanitizeSettings({ hotkey: '', micDeviceId: '  ' })
+  assert.equal(s.hotkey, DEFAULT_SETTINGS.hotkey)
+  assert.equal(s.micDeviceId, DEFAULT_SETTINGS.micDeviceId)
+})
 
-test('normalizeHotkeys 缺項補預設', () => {
-  const h = normalizeHotkeys({ toggle: 'Alt+KeyX' });
-  assert.equal(h.toggle, 'Alt+KeyX');
-  assert.equal(h.ptt, DEFAULT_HOTKEYS.ptt);
-});
-
-test('settingsEqual 比較正規化後內容', () => {
-  assert.ok(settingsEqual({}, DEFAULTS));
-  assert.ok(settingsEqual({ autoSend: true }, { autoSend: true }));
-  assert.ok(!settingsEqual({ autoSend: true }, { autoSend: false }));
-  assert.ok(settingsEqual({ hotkeys: {} }, { hotkeys: DEFAULT_HOTKEYS }));
-});
+test('sanitizeSettings 只回傳已知鍵、忽略未知鍵', () => {
+  const s = sanitizeSettings({ lang: 'en', evilKey: 'x', engine: 'sherpa' })
+  assert.equal(s.lang, 'en')
+  assert.equal('evilKey' in s, false)
+  assert.equal('engine' in s, false)
+  assert.deepEqual(Object.keys(s).sort(), Object.keys(DEFAULT_SETTINGS).sort())
+})

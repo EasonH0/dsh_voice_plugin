@@ -1,4 +1,4 @@
-# 安装期 bundle patch：dsh plugin --profile <name> add dsh-voice-input
+# 安装期 bundle patch：dsh plugin --profile web add github:EasonH0/dsh_voice_plugin
 # 后由插件声明（dsh.bundle.patch）自动加入 layer 栈。
 # 行内 config 只传给 host 半；client 半由 host 经 /voice-input.config
 # loopback RPC 同步生效配置。
@@ -7,23 +7,32 @@
       name: 'dsh-voice-input'
       inject: [connection]
       config:
-        # 引擎：auto（有模型用 sherpa 流式；缺模型回退浏览器 Web Speech 兜底）
-        # 可选：'sherpa'（流式低延迟）| 'whisper'（高准确、中英混说强、非流式）
-        engine: auto
-        # 本地模型目录：留空 = 自动使用 <profile>/dsh-voice-input-models
-        # 首次使用前运行 npx dsh-voice-input-models 下载模型
-        modelDir: ''
-        # 页面内快捷键（按键序列，+ 分隔）：开始/停止录音
+        # Web Speech 识别语言：zh-HK 粤语（默认）/ zh-CN 普通话 / en 英语
+        lang: 'zh-HK'
+        # 录音模式：toggle 点击开始/停止（默认）；ptt 按住说话
+        recordingMode: 'toggle'
+        # 快捷键序列（顺序感应，+ 分隔，任意长度）：开始/停止录音
         hotkey: 'Alt+KeyM'
         # 备用快捷键（开始/停止）
         hotkeyAlt: 'Alt+KeyV'
-        # LLM 润色：修错字、标点、断句（走 DSH 会话模型）
+        # LLM 润色：修同音错字、补标点、粤语口语→繁体书面语（走 DSH 会话模型）
         polish: true
         # 转写完成后自动发送
         autoSend: false
-        # 降噪（浏览器语音处理）
+        # 关麦后立即停止输出（先彻底关闭录音资源再清状态）
+        stopOnMute: false
+        # 以下为浏览器 WebRTC 语音处理设置：
+        # Web Speech 引擎由浏览器自行采声，三项约束预留予监听/音量表与未来引擎。
+        # 降噪（默认开）
         noiseSuppression: true
-        # 回声消除（无回音环境慎开）
+        # 回声消除（默认关：无回音环境开了会断断续续）
         echoCancellation: false
-        # 自动增益（自动放大轻声收音）
+        # 自动增益（默认开：自动放大轻声收音）
         autoGainControl: true
+        # 监听开关：即时听到麦克风输入（阶段 B 设定页启用）
+        listen: false
+        # 麦克风设备 id（空 = 系统默认）
+        micDeviceId: ''
+        # 润色模型：follow = 跟随 DSH 会话模型
+        polishProvider: 'follow'
+        polishModel: 'follow'

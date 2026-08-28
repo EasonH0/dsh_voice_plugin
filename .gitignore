@@ -6,3 +6,12 @@ _research/
 .DS_Store
 dist/
 *.tgz
+# 敏感檔案防護（2026-08-28 錄音外洩教訓）：音訊／錄音預設不入庫
+*.wav
+*.mp3
+*.m4a
+*.opus
+*.webm
+*.ogg
+*.flac
+*.pcm

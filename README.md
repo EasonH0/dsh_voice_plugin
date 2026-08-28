@@ -1,47 +1,43 @@
 # dsh-voice-input
 
-DSH 語音輸入插件（DeepSeek Harness 插件）：輸入欄麥克風按鈕，說話即轉文字——**語音辨識全在本機**（語音永不離開電腦），可選 LLM 潤色（修錯字、標點、斷句）再填入輸入欄。
+DSH（DeepSeek Harness）语音输入插件：输入栏麦克风按钮 → 说话 → 文字填入输入栏，可选 LLM 润色。
 
-## 功能
+- **零安装、零模型下载**：主引擎使用浏览器内置 Web Speech API，开箱即用
+- **LLM 润色**：修正同音错字、补标点断句、粤语口语 → 繁体中文书面语（跟随 DSH 会话模型）
+- **录音模式**：点击开始/停止（toggle，默认）＋ 按住说话（PTT）
+- **快捷键序列**：任意长度按键序列（顺序感应），默认 `Alt+M` 开始/停止（备用 `Alt+V`）
+- **零 npm 依赖**：插件本体无运行时依赖
 
-- 麥克風按鈕：輸入欄發送鈕左方；點擊開始／停止錄音（錄音中有動畫）
-- 本地語音辨識（雙引擎）：
-  - `sherpa`：sherpa-onnx 串流三語模型（粵・中・英）——邊說邊出字、低延遲
-  - `whisper`：Whisper large-v3——高準確、中英混說與程式術語辨識強（非流式）
-  - `auto`（預設）：缺模型自動回退瀏覽器 Web Speech，開箱即用
-- LLM 潤色（預設開）：修同音錯字、補標點、斷句（走 DSH 會話模型）
-- 頁面內快捷鍵：序列組合（如 `C+V+B+N`），可在 profile 設定
-- 降噪／回音消除／自動增益（瀏覽器語音處理，可設定）
-- 串流文字即時寫入輸入欄；可開自動發送
+## 隐私说明（重要）
 
-## 安裝
+Web Speech 是浏览器云端识别服务：Chrome 将音频发送至 Google、Edge 发送至微软。**音频会离开本机**，请勿在隐私敏感时刻使用。润色文字经由 DSH 会话模型路径处理（与正常对话相同）。
 
-見 [INSTALL.md](INSTALL.md)。
+## 安装
 
-```bash
+```
 dsh plugin --profile web add github:EasonH0/dsh_voice_plugin
-npx dsh-voice-input-models            # 下載語音模型（首次一次；--whisper 加高準確引擎）
 ```
 
-## 架構
+详见 [INSTALL.md](./INSTALL.md)。
 
-見 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
-
-- `lib/`：正式插件（host `lib/index.js`＋client bundle `lib/client.js`＋核心與引擎）
-- `src/`：平台無關純邏輯（與 `lib/` 同步）
-- `test/`：單元測試（`npm test`，零第三方測試依賴）
-- `tools/`：模型下載 bin（`dsh-voice-input-models`）
-- `scripts/`：開發用 CLI（wav 辨識煙霧測試、音訊轉檔）
-- `dynamic-plugin/`：動態插件原型源碼（開發歷程，不隨正式包分發）
-
-## 開發
+## 开发
 
 ```
-npm test                              # 單元測試
-node scripts/recognize-wav.mjs <wav>  # sherpa 煙霧測試
-node scripts/recognize-whisper.mjs <wav>  # whisper 煙霧測試
+node scripts/build.mjs                       # 构建：src/ → lib/（lib/ 为提交产物）
+node --test --test-isolation=none "test/*.test.mjs"   # 单元测试
 ```
 
-## 證書
+目录结构：
 
-Apache-2.0（見 LICENSE）。模型版權屬各自作者。
+```
+src/core/*.js   纯逻辑（快捷鍵序列/draft 合并/設定 schema/音量/文案，可单测）
+src/host.js     host 半源碼（/voice-input RPC + LLM 润色）
+src/client.js   client 半源碼（麦克风按钮 + Web Speech + 快捷鍵 + 草稿串流）
+scripts/build.mjs   零依赖构建（src/ 拼成 lib/ 单文件 bundle）
+lib/            构建产物（提交进 repo：GitHub 源码安装不跑 build）
+test/           单元测试
+```
+
+## 许可证
+
+Apache-2.0
